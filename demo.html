@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FHE Project Board</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--primary:#0079BF;--primary-dark:#026AA7;--bg:#F4F5F7;--card:#fff;
+--text:#172B4D;--text-sec:#5E6C84;--list-bg:#EBECF0;--border:#DFE1E6;
+--success:#61BD4F;--warning:#F2D600;--danger:#EB5A46;--shadow:0 1px 3px rgba(0,0,0,.12);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:inherit;text-decoration:none}
+
+/* HEADER */
+.header{background:var(--primary-dark);height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:fixed;top:0;left:0;right:0;z-index:100;box-shadow:0 2px 4px rgba(0,0,0,.15)}
+.header-logo{color:#fff;font-size:18px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.header-logo svg{width:24px;height:24px}
+.header-nav{display:flex;align-items:center;gap:12px}
+.header-nav button{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;transition:background .2s}
+.header-nav button:hover{background:rgba(255,255,255,.35)}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+
+/* MAIN CONTENT */
+.main{padding-top:48px;min-height:100vh}
+
+/* BOARD LIST */
+.board-list-page{padding:40px;max-width:1200px;margin:0 auto}
+.board-list-page h2{font-size:22px;margin-bottom:24px;color:var(--text)}
+.boards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.board-card{border-radius:8px;padding:20px;color:#fff;cursor:pointer;min-height:110px;position:relative;transition:transform .15s,box-shadow .15s;overflow:hidden}
+.board-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.board-card h3{font-size:17px;font-weight:700;margin-bottom:6px;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+.board-card p{font-size:12px;opacity:.85}
+.board-card .member-count{position:absolute;bottom:12px;right:14px;font-size:11px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:10px}
+.new-board-card{background:rgba(0,0,0,.04);border:2px dashed var(--border);color:var(--text-sec);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;min-height:110px;border-radius:8px;cursor:pointer;transition:background .2s,border-color .2s}
+.new-board-card:hover{background:rgba(0,0,0,.08);border-color:var(--primary)}
+
+/* BOARD VIEW */
+.board-view{min-height:calc(100vh - 48px);padding:12px 8px;overflow-x:auto;display:flex;gap:12px;align-items:flex-start}
+.board-header{position:sticky;top:48px;z-index:50;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.board-header h2{font-size:20px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.2)}
+.board-header .back-btn{background:rgba(255,255,255,.25);border:none;color:#fff;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;transition:background .2s}
+.board-header .back-btn:hover{background:rgba(255,255,255,.4)}
+
+/* LIST COLUMNS */
+.list-col{background:var(--list-bg);border-radius:8px;width:280px;min-width:280px;max-height:calc(100vh - 130px);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.list-header{padding:10px 12px 6px;display:flex;align-items:center;justify-content:space-between}
+.list-header h3{font-size:14px;font-weight:700;color:var(--text)}
+.list-header .card-count{font-size:11px;color:var(--text-sec);background:rgba(0,0,0,.08);padding:1px 7px;border-radius:10px}
+.list-cards{padding:4px 8px;overflow-y:auto;flex:1;min-height:20px}
+.list-footer{padding:8px}
+.add-card-btn{width:100%;background:none;border:none;color:var(--text-sec);text-align:left;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s,color .15s}
+.add-card-btn:hover{background:rgba(0,0,0,.06);color:var(--text)}
+.add-list-btn{background:rgba(255,255,255,.25);border:none;color:rgba(255,255,255,.8);padding:12px 16px;border-radius:8px;cursor:pointer;font-size:14px;min-width:280px;text-align:left;transition:background .2s}
+.add-list-btn:hover{background:rgba(255,255,255,.4)}
+
+/* CARDS */
+.card{background:var(--card);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s,box-shadow .15s;position:relative}
+.card:hover{box-shadow:0 3px 8px rgba(0,0,0,.15);transform:translateY(-1px)}
+.card.dragging{opacity:.5;transform:rotate(3deg)}
+.card-cover{height:6px;border-radius:6px 6px 0 0;margin:-8px -10px 8px}
+.card-labels{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.card-label{height:8px;width:42px;border-radius:4px;display:inline-block}
+.card-title{font-size:14px;line-height:1.4;color:var(--text);word-wrap:break-word}
+.card-meta{display:flex;gap:10px;margin-top:8px;align-items:center;flex-wrap:wrap}
+.card-meta-item{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-sec)}
+.card-meta-item.overdue{color:var(--danger);font-weight:600}
+.card-meta-item svg{width:14px;height:14px}
+.card-assignees{display:flex;margin-left:auto}
+.card-assignee{width:26px;height:26px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;margin-left:-6px;border:2px solid #fff}
+
+/* MODAL */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.active{opacity:1;pointer-events:all}
+.modal{background:var(--bg);border-radius:10px;width:100%;max-width:680px;max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);transform:translateY(20px);transition:transform .25s;padding:0}
+.modal-overlay.active .modal{transform:translateY(0)}
+.modal-header{padding:20px 24px 12px;display:flex;align-items:flex-start;gap:12px}
+.modal-header svg{flex-shrink:0;color:var(--text-sec);margin-top:4px}
+.modal-close{position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;color:var(--text-sec);cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.modal-close:hover{background:rgba(0,0,0,.1)}
+.modal-title{font-size:20px;font-weight:700;border:none;background:none;width:100%;color:var(--text);outline:none;padding:2px 0}
+.modal-section{padding:0 24px 16px;margin-left:36px}
+.modal-section h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.modal-labels{display:flex;gap:6px;flex-wrap:wrap}
+.modal-label{padding:4px 12px;border-radius:4px;color:#fff;font-size:12px;font-weight:600}
+.modal-desc{color:var(--text-sec);font-size:14px;line-height:1.6;white-space:pre-wrap}
+.modal-due{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:13px;font-weight:500}
+.modal-due.overdue{background:#FCEAE8;color:var(--danger)}
+.modal-due.upcoming{background:#E4F7E1;color:#1B7A0A}
+.checklist-section{margin-top:4px}
+.checklist-title{font-size:15px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.checklist-progress{width:100%;height:6px;background:var(--border);border-radius:3px;margin-bottom:10px;overflow:hidden}
+.checklist-progress-fill{height:100%;background:var(--success);border-radius:3px;transition:width .3s}
+.checklist-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px}
+.checklist-item input[type="checkbox"]{width:16px;height:16px;accent-color:var(--success);cursor:pointer}
+.checklist-item.checked span{text-decoration:line-through;color:var(--text-sec)}
+.comment{padding:10px 0;border-bottom:1px solid var(--border)}
+.comment:last-child{border-bottom:none}
+.comment-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.comment-avatar{width:28px;height:28px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center}
+.comment-author{font-size:13px;font-weight:700}
+.comment-time{font-size:11px;color:var(--text-sec)}
+.comment-text{font-size:14px;color:var(--text);line-height:1.5;margin-left:36px}
+
+/* ADD FORMS */
+.add-form{padding:8px}
+.add-form textarea,.add-form input{width:100%;padding:8px 10px;border:2px solid var(--primary);border-radius:6px;font-size:14px;font-family:inherit;resize:none;outline:none}
+.add-form-actions{display:flex;gap:6px;margin-top:6px}
+.btn-primary{background:var(--primary);color:#fff;border:none;padding:7px 16px;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-cancel{background:none;border:none;font-size:18px;color:var(--text-sec);cursor:pointer;padding:4px 8px}
+
+/* CREATE BOARD MODAL */
+.create-board-modal{padding:24px}
+.create-board-modal h3{font-size:18px;margin-bottom:16px}
+.create-board-modal input{width:100%;padding:10px;border:2px solid var(--border);border-radius:6px;font-size:15px;margin-bottom:12px;outline:none;transition:border-color .2s}
+.create-board-modal input:focus{border-color:var(--primary)}
+.color-picker{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.color-opt{width:40px;height:32px;border-radius:6px;cursor:pointer;border:3px solid transparent;transition:border-color .15s,transform .15s}
+.color-opt:hover{transform:scale(1.1)}
+.color-opt.selected{border-color:var(--text);transform:scale(1.1)}
+
+/* ANIMATIONS */
+@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.animate-in{animation:fadeInUp .3s ease both}
+.list-col{animation:slideIn .3s ease both}
+.list-col:nth-child(2){animation-delay:.05s}
+.list-col:nth-child(3){animation-delay:.1s}
+.list-col:nth-child(4){animation-delay:.15s}
+.list-col:nth-child(5){animation-delay:.2s}
+.list-col:nth-child(6){animation-delay:.25s}
+
+/* SCROLLBAR */
+.list-cards::-webkit-scrollbar{width:6px}
+.list-cards::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:3px}
+.list-cards::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25)}
+
+/* RESPONSIVE */
+@media(max-width:600px){
+.board-list-page{padding:20px}
+.boards-grid{grid-template-columns:1fr 1fr}
+.list-col{width:260px;min-width:260px}
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// =================== DATA ===================
+const COLORS = ['#0079BF','#D29034','#519839','#B04632','#89609E','#CD5A91','#4BBF6B','#00AECC','#838C91'];
+const LABEL_COLORS = {
+  'Urgent':'#EB5A46','Budget Review':'#F2D600','Client Approval':'#0079BF',
+  'Safety':'#61BD4F','Engineering':'#89609E','Permit':'#00AECC',
+  'Design':'#CD5A91','High Priority':'#EB5A46','In Review':'#F2D600',
+  'IT':'#0079BF','Facilities':'#D29034','Vendor':'#838C91',
+  'Backend':'#89609E','Frontend':'#00AECC','QA':'#61BD4F','DevOps':'#EB5A46'
+};
+
+function defaultData() {
+  return {
+    boards: [
+      {
+        id:'b1', title:'Highway 441 Bridge Expansion', color:'#0079BF',
+        desc:'FDOT contract - Bridge widening and structural reinforcement project',
+        members:['JM','RL','KS','AP'],
+        lists:[
+          {id:'l1',title:'Planning',cards:[
+            {id:'c1',title:'Site survey and soil analysis',labels:['Engineering'],due:'2026-02-20',desc:'Complete geotechnical survey of bridge foundations and surrounding soil. Core samples needed at 4 locations.',assignees:['KS'],checklists:[{title:'Survey Tasks',items:[{t:'Schedule drill rig',done:true},{t:'Collect core samples',done:true},{t:'Lab analysis',done:false},{t:'Final report',done:false}]}],comments:[{author:'Kevin S.',avatar:'#519839',text:'Drill rig confirmed for Feb 15. Lab results expected by Feb 22.',time:'2 days ago'}]},
+            {id:'c2',title:'Environmental impact assessment',labels:['Permit','Safety'],due:'2026-03-01',desc:'EIA required per FDOT guidelines before construction permit approval.',assignees:['AP'],checklists:[],comments:[]}
+          ]},
+          {id:'l2',title:'Design Review',cards:[
+            {id:'c3',title:'Structural load calculations - Phase 1',labels:['Engineering','Urgent'],cover:'#EB5A46',due:'2026-02-14',desc:'Verify load-bearing capacity for expanded 4-lane design. Must meet AASHTO LRFD standards.',assignees:['JM','RL'],checklists:[{title:'Calculations',items:[{t:'Dead load analysis',done:true},{t:'Live load analysis',done:true},{t:'Wind load analysis',done:false},{t:'Seismic assessment',done:false},{t:'Peer review',done:false}]}],comments:[{author:'James M.',avatar:'#0079BF',text:'Wind load numbers look concerning. Scheduling meeting with structural team.',time:'1 day ago'}]},
+            {id:'c4',title:'Traffic management plan during construction',labels:['Safety','Client Approval'],desc:'Develop traffic detour plan for 18-month construction window.',assignees:['RL'],checklists:[],comments:[]}
+          ]},
+          {id:'l3',title:'Permits',cards:[
+            {id:'c5',title:'FDOT construction permit application',labels:['Permit','Urgent'],due:'2026-02-28',desc:'Submit Form 700-010-10 with all supporting documentation.',assignees:['AP'],checklists:[{title:'Required Documents',items:[{t:'Engineering drawings',done:true},{t:'Environmental clearance',done:false},{t:'Traffic management plan',done:false},{t:'Insurance certificates',done:true},{t:'Bond documentation',done:true}]}],comments:[]}
+          ]},
+          {id:'l4',title:'In Progress',cards:[
+            {id:'c6',title:'Utility relocation coordination',labels:['Engineering'],desc:'Coordinate with FPL and water management district for utility relocations.',assignees:['KS'],checklists:[],comments:[{author:'Kevin S.',avatar:'#519839',text:'FPL confirmed they can relocate power lines by March 15.',time:'3 hours ago'}]}
+          ]},
+          {id:'l5',title:'QA / Inspection',cards:[]},
+          {id:'l6',title:'Complete',cards:[
+            {id:'c7',title:'Initial client kickoff meeting',labels:['Client Approval'],desc:'Kickoff meeting with FDOT project manager completed.',assignees:['JM'],checklists:[],comments:[{author:'James M.',avatar:'#0079BF',text:'Meeting went well. Client approved preliminary timeline.',time:'1 week ago'}]}
+          ]}
+        ]
+      },
+      {
+        id:'b2', title:'Office Renovation Phase 2', color:'#D29034',
+        desc:'Second floor build-out - conference rooms and open workspace',
+        members:['JM','TS'],
+        lists:[
+          {id:'l7',title:'Backlog',cards:[
+            {id:'c8',title:'Select flooring material for conference rooms',labels:['Facilities','Budget Review'],desc:'Need to choose between LVP and carpet tile. Budget is $8/sqft.',assignees:['TS'],checklists:[{title:'Options to Review',items:[{t:'Get LVP samples',done:true},{t:'Get carpet tile samples',done:true},{t:'Cost comparison',done:false},{t:'Present to management',done:false}]}],comments:[]},
+            {id:'c9',title:'AV system spec for main conference room',labels:['IT','Budget Review'],desc:'85" display, ceiling speakers, wireless presentation system.',assignees:[],checklists:[],comments:[]}
+          ]},
+          {id:'l8',title:'In Progress',cards:[
+            {id:'c10',title:'Electrical rough-in for new offices',labels:['Facilities','Urgent'],due:'2026-02-18',desc:'Run conduit and wire for 12 new workstations and 2 conference rooms.',assignees:['TS'],checklists:[{title:'Electrical Work',items:[{t:'Pull permits',done:true},{t:'Run conduit - east wing',done:true},{t:'Run conduit - west wing',done:false},{t:'Install outlets',done:false},{t:'Inspection',done:false}]}],comments:[]}
+          ]},
+          {id:'l9',title:'Review',cards:[
+            {id:'c11',title:'HVAC zoning plan approval',labels:['Engineering','Client Approval'],desc:'New zones needed for conference rooms to maintain independent climate control.',assignees:['JM'],checklists:[],comments:[{author:'James M.',avatar:'#0079BF',text:'HVAC contractor submitted revised plan. Looks good.',time:'5 hours ago'}]}
+          ]},
+          {id:'l10',title:'Done',cards:[
+            {id:'c12',title:'Demolition of existing partition walls',labels:['Facilities'],desc:'All old cubicle walls removed and disposed of.',assignees:['TS'],checklists:[],comments:[]}
+          ]}
+        ]
+      },
+      {
+        id:'b3', title:'Fleet Management System', color:'#519839',
+        desc:'Internal software to track vehicle maintenance and assignments',
+        members:['JM','DK','RL'],
+        lists:[
+          {id:'l11',title:'To Do',cards:[
+            {id:'c13',title:'GPS tracking integration API',labels:['Backend','Engineering'],desc:'Integrate with Samsara GPS API to pull real-time vehicle locations.',assignees:['DK'],checklists:[],comments:[]},
+            {id:'c14',title:'Fuel cost reporting dashboard',labels:['Frontend','Budget Review'],desc:'Charts showing fuel spend by vehicle, driver, and project.',assignees:[],checklists:[],comments:[]}
+          ]},
+          {id:'l12',title:'Doing',cards:[
+            {id:'c15',title:'Vehicle maintenance scheduling module',labels:['Backend','Frontend','High Priority'],due:'2026-02-25',desc:'Auto-generate maintenance reminders based on mileage and date thresholds.',assignees:['DK','RL'],checklists:[{title:'Dev Tasks',items:[{t:'Database schema',done:true},{t:'API endpoints',done:true},{t:'Frontend UI',done:false},{t:'Email notifications',done:false},{t:'Testing',done:false}]}],comments:[{author:'Derek K.',avatar:'#89609E',text:'API is done. Starting on the frontend tomorrow.',time:'4 hours ago'}]}
+          ]},
+          {id:'l13',title:'Testing',cards:[
+            {id:'c16',title:'Driver assignment workflow',labels:['QA','Frontend'],desc:'Assign drivers to vehicles with date ranges and approval flow.',assignees:['RL'],checklists:[{title:'Test Cases',items:[{t:'Assign driver - happy path',done:true},{t:'Overlapping assignments',done:true},{t:'Manager approval flow',done:true},{t:'Email notifications',done:false}]}],comments:[]}
+          ]},
+          {id:'l14',title:'Deployed',cards:[
+            {id:'c17',title:'Vehicle inventory database',labels:['Backend','DevOps'],desc:'Full CRUD for company vehicle records with VIN, make, model, year.',assignees:['DK'],checklists:[],comments:[]},
+            {id:'c18',title:'User authentication & roles',labels:['Backend'],desc:'JWT auth with admin, manager, and driver roles.',assignees:['DK'],checklists:[],comments:[]}
+          ]}
+        ]
+      }
+    ]
+  };
+}
+
+// =================== STATE ===================
+let state = JSON.parse(localStorage.getItem('fhe_board_data')) || defaultData();
+let currentView = 'boards'; // 'boards' or 'board'
+let currentBoardId = null;
+let currentCardModal = null;
+let dragData = null;
+
+function save(){ localStorage.setItem('fhe_board_data', JSON.stringify(state)); }
+function getBoard(id){ return state.boards.find(b=>b.id===id); }
+
+// =================== RENDER ===================
+function render(){
+  const app = document.getElementById('app');
+  if(currentView === 'boards') app.innerHTML = renderHeader('boards') + renderBoardList();
+  else app.innerHTML = renderHeader('board') + renderBoardView();
+  bindEvents();
+  if(currentCardModal) openCardModal(currentCardModal);
+}
+
+function renderHeader(view){
+  return `<div class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24" fill="white"><rect x="2" y="2" width="9" height="13" rx="2"/><rect x="13" y="2" width="9" height="9" rx="2"/></svg>
+      FHE Project Board
+    </div>
+    <div class="header-nav">
+      ${view==='board'?'<button onclick="goHome()">All Boards</button>':''}
+      <button onclick="resetDemo()">Reset Demo</button>
+      <div class="user-avatar">JM</div>
+    </div>
+  </div>`;
+}
+
+function renderBoardList(){
+  let html = `<div class="main"><div class="board-list-page animate-in">
+    <h2>Your Boards</h2>
+    <div class="boards-grid">`;
+  state.boards.forEach((b,i) => {
+    html += `<div class="board-card" style="background:${b.color};animation-delay:${i*0.05}s" onclick="openBoard('${b.id}')">
+      <h3>${b.title}</h3>
+      <p>${b.desc||''}</p>
+      <span class="member-count">${b.members?b.members.length:1} members</span>
+    </div>`;
+  });
+  html += `<div class="new-board-card" onclick="showCreateBoard()">
+    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Create new board
+  </div>`;
+  html += `</div></div></div>`;
+  html += renderModal();
+  return html;
+}
+
+function renderBoardView(){
+  const board = getBoard(currentBoardId);
+  if(!board) return '';
+  let html = `<div class="main" style="background:${board.color}">
+    <div class="board-header">
+      <button class="back-btn" onclick="goHome()">&#8592; Boards</button>
+      <h2>${board.title}</h2>
+    </div>
+    <div class="board-view">`;
+  board.lists.forEach(list => {
+    html += `<div class="list-col" data-list="${list.id}">
+      <div class="list-header">
+        <h3>${list.title}</h3>
+        <span class="card-count">${list.cards.length}</span>
+      </div>
+      <div class="list-cards" data-list="${list.id}"
+           ondragover="onDragOver(event)" ondrop="onDrop(event,'${list.id}')">`;
+    list.cards.forEach((card,ci) => {
+      html += renderCard(card, list.id, ci);
+    });
+    html += `</div>
+      <div class="list-footer">
+        <div class="add-card-area" data-list="${list.id}">
+          <button class="add-card-btn" onclick="showAddCard('${list.id}')">+ Add a card</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `<button class="add-list-btn" onclick="showAddList()">+ Add another list</button>`;
+  html += `</div></div>`;
+  html += renderModal();
+  return html;
+}
+
+function renderCard(card, listId, idx){
+  let labelsHtml = '';
+  if(card.labels && card.labels.length){
+    labelsHtml = '<div class="card-labels">' + card.labels.map(l=>`<span class="card-label" style="background:${LABEL_COLORS[l]||'#838C91'}" title="${l}"></span>`).join('') + '</div>';
+  }
+  let coverHtml = card.cover ? `<div class="card-cover" style="background:${card.cover}"></div>` : '';
+  let metaHtml = '';
+  let metaItems = [];
+  if(card.due){
+    const isOverdue = new Date(card.due) < new Date();
+    const cls = isOverdue ? 'overdue' : '';
+    metaItems.push(`<span class="card-meta-item ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${formatDate(card.due)}</span>`);
+  }
+  if(card.checklists && card.checklists.length){
+    let total=0, checked=0;
+    card.checklists.forEach(cl=>{total+=cl.items.length;checked+=cl.items.filter(i=>i.done).length;});
+    const allDone = total>0 && checked===total;
+    metaItems.push(`<span class="card-meta-item" style="${allDone?'color:var(--success)':''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>${checked}/${total}</span>`);
+  }
+  if(card.comments && card.comments.length){
+    metaItems.push(`<span class="card-meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${card.comments.length}</span>`);
+  }
+  let assigneesHtml = '';
+  if(card.assignees && card.assignees.length){
+    const aColors = ['#0079BF','#D29034','#519839','#B04632','#89609E'];
+    assigneesHtml = '<div class="card-assignees">' + card.assignees.map((a,i)=>`<div class="card-assignee" style="background:${aColors[i%aColors.length]}">${a}</div>`).join('') + '</div>';
+  }
+  if(metaItems.length || assigneesHtml){
+    metaHtml = `<div class="card-meta">${metaItems.join('')}${assigneesHtml}</div>`;
+  }
+
+  return `<div class="card" draggable="true" data-card="${card.id}" data-list="${listId}"
+    ondragstart="onDragStart(event,'${card.id}','${listId}')"
+    ondragend="onDragEnd(event)"
+    onclick="openCardDetail('${card.id}')">
+    ${coverHtml}${labelsHtml}
+    <div class="card-title">${card.title}</div>
+    ${metaHtml}
+  </div>`;
+}
+
+function renderModal(){
+  return `<div class="modal-overlay" id="modalOverlay" onclick="closeModalOverlay(event)">
+    <div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
+  </div>`;
+}
+
+// =================== CARD DETAIL MODAL ===================
+function openCardDetail(cardId){
+  let card = null, listTitle = '';
+  const board = getBoard(currentBoardId);
+  if(!board) return;
+  board.lists.forEach(l=>{l.cards.forEach(c=>{if(c.id===cardId){card=c;listTitle=l.title;}});});
+  if(!card) return;
+  currentCardModal = cardId;
+
+  let labelsHtml = '';
+  if(card.labels && card.labels.length){
+    labelsHtml = `<div class="modal-section"><h4>Labels</h4><div class="modal-labels">${card.labels.map(l=>`<span class="modal-label" style="background:${LABEL_COLORS[l]||'#838C91'}">${l}</span>`).join('')}</div></div>`;
+  }
+
+  let dueHtml = '';
+  if(card.due){
+    const isOverdue = new Date(card.due) < new Date();
+    dueHtml = `<div class="modal-section"><h4>Due Date</h4><span class="modal-due ${isOverdue?'overdue':'upcoming'}">${isOverdue?'&#9888; OVERDUE - ':''}${formatDate(card.due)}</span></div>`;
+  }
+
+  let descHtml = card.desc ? `<div class="modal-section"><h4>Description</h4><p class="modal-desc">${card.desc}</p></div>` : '';
+
+  let checklistHtml = '';
+  if(card.checklists && card.checklists.length){
+    checklistHtml = card.checklists.map(cl => {
+      const total = cl.items.length;
+      const checked = cl.items.filter(i=>i.done).length;
+      const pct = total ? Math.round(checked/total*100) : 0;
+      return `<div class="modal-section checklist-section">
+        <div class="checklist-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>${cl.title} <span style="font-weight:400;font-size:12px;color:var(--text-sec)">${pct}%</span></div>
+        <div class="checklist-progress"><div class="checklist-progress-fill" style="width:${pct}%"></div></div>
+        ${cl.items.map((item,ii)=>`<div class="checklist-item ${item.done?'checked':''}">
+          <input type="checkbox" ${item.done?'checked':''} onchange="toggleCheckItem('${card.id}','${cl.title}',${ii})">
+          <span>${item.t}</span>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+
+  let commentsHtml = '';
+  if(card.comments && card.comments.length){
+    commentsHtml = `<div class="modal-section"><h4>Activity</h4>${card.comments.map(c=>`<div class="comment">
+      <div class="comment-header">
+        <div class="comment-avatar" style="background:${c.avatar||'#0079BF'}">${c.author.split(' ').map(w=>w[0]).join('')}</div>
+        <span class="comment-author">${c.author}</span>
+        <span class="comment-time">${c.time}</span>
+      </div>
+      <div class="comment-text">${c.text}</div>
+    </div>`).join('')}</div>`;
+  }
+
+  let assigneesHtml = '';
+  if(card.assignees && card.assignees.length){
+    const aColors = ['#0079BF','#D29034','#519839','#B04632','#89609E'];
+    assigneesHtml = `<div class="modal-section"><h4>Assignees</h4><div style="display:flex;gap:8px">${card.assignees.map((a,i)=>`<div style="display:flex;align-items:center;gap:6px"><div class="card-assignee" style="background:${aColors[i%aColors.length]};margin:0;border-color:var(--bg)">${a}</div></div>`).join('')}</div></div>`;
+  }
+
+  const html = `
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div class="modal-header">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="7" y1="7" x2="17" y2="7"/><line x1="7" y1="12" x2="14" y2="12"/></svg>
+      <div style="flex:1">
+        <div class="modal-title">${card.title}</div>
+        <div style="font-size:12px;color:var(--text-sec);margin-top:2px">in list <strong>${listTitle}</strong></div>
+      </div>
+    </div>
+    ${labelsHtml}${assigneesHtml}${dueHtml}${descHtml}${checklistHtml}${commentsHtml}
+  `;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function toggleCheckItem(cardId, clTitle, itemIdx){
+  const board = getBoard(currentBoardId);
+  board.lists.forEach(l=>{l.cards.forEach(c=>{
+    if(c.id===cardId){
+      const cl = c.checklists.find(x=>x.title===clTitle);
+      if(cl) cl.items[itemIdx].done = !cl.items[itemIdx].done;
+    }
+  });});
+  save();
+  openCardDetail(cardId);
+  render();
+}
+
+// =================== CARD MODAL ===================
+function openCardModal(cardId){ openCardDetail(cardId); }
+
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('active');
+  currentCardModal = null;
+}
+function closeModalOverlay(e){
+  if(e.target.id==='modalOverlay') closeModal();
+}
+
+// =================== DRAG & DROP ===================
+function onDragStart(e, cardId, listId){
+  dragData = {cardId, listId};
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(()=>{ e.target.classList.add('dragging'); },0);
+}
+function onDragEnd(e){ e.target.classList.remove('dragging'); dragData=null; }
+function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function onDrop(e, targetListId){
+  e.preventDefault();
+  if(!dragData) return;
+  const board = getBoard(currentBoardId);
+  const srcList = board.lists.find(l=>l.id===dragData.listId);
+  const tgtList = board.lists.find(l=>l.id===targetListId);
+  if(!srcList||!tgtList) return;
+  const cardIdx = srcList.cards.findIndex(c=>c.id===dragData.cardId);
+  if(cardIdx===-1) return;
+  const [card] = srcList.cards.splice(cardIdx,1);
+  tgtList.cards.push(card);
+  save();
+  dragData = null;
+  render();
+}
+
+// =================== NAVIGATION ===================
+function goHome(){ currentView='boards'; currentBoardId=null; render(); }
+function openBoard(id){ currentView='board'; currentBoardId=id; render(); }
+
+// =================== ADD CARD ===================
+function showAddCard(listId){
+  const area = document.querySelector(`.add-card-area[data-list="${listId}"]`);
+  area.innerHTML = `<div class="add-form">
+    <textarea id="newCardInput" rows="3" placeholder="Enter a title for this card..."></textarea>
+    <div class="add-form-actions">
+      <button class="btn-primary" onclick="addCard('${listId}')">Add Card</button>
+      <button class="btn-cancel" onclick="render()">&#10005;</button>
+    </div>
+  </div>`;
+  document.getElementById('newCardInput').focus();
+}
+function addCard(listId){
+  const val = document.getElementById('newCardInput').value.trim();
+  if(!val) return;
+  const board = getBoard(currentBoardId);
+  const list = board.lists.find(l=>l.id===listId);
+  list.cards.push({id:'c'+Date.now(),title:val,labels:[],desc:'',assignees:[],checklists:[],comments:[]});
+  save(); render();
+}
+
+// =================== ADD LIST ===================
+function showAddList(){
+  const btn = document.querySelector('.add-list-btn');
+  btn.outerHTML = `<div style="min-width:280px"><div class="add-form" style="background:var(--list-bg);border-radius:8px;padding:8px">
+    <input id="newListInput" placeholder="Enter list title..." autofocus>
+    <div class="add-form-actions">
+      <button class="btn-primary" onclick="addList()">Add List</button>
+      <button class="btn-cancel" onclick="render()">&#10005;</button>
+    </div>
+  </div></div>`;
+  document.getElementById('newListInput').focus();
+}
+function addList(){
+  const val = document.getElementById('newListInput').value.trim();
+  if(!val) return;
+  const board = getBoard(currentBoardId);
+  board.lists.push({id:'l'+Date.now(),title:val,cards:[]});
+  save(); render();
+}
+
+// =================== CREATE BOARD ===================
+function showCreateBoard(){
+  let selectedColor = COLORS[0];
+  const html = `<div class="create-board-modal">
+    <h3>Create Board</h3>
+    <input id="newBoardTitle" placeholder="Board title" autofocus>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:6px">Background color</div>
+    <div class="color-picker">
+      ${COLORS.map((c,i)=>`<div class="color-opt ${i===0?'selected':''}" style="background:${c}" onclick="selectBoardColor(this,'${c}')"></div>`).join('')}
+    </div>
+    <button class="btn-primary" style="width:100%;padding:10px;font-size:15px" onclick="createBoard()">Create Board</button>
+  </div>`;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('active');
+  window._newBoardColor = COLORS[0];
+}
+function selectBoardColor(el,color){
+  document.querySelectorAll('.color-opt').forEach(e=>e.classList.remove('selected'));
+  el.classList.add('selected');
+  window._newBoardColor = color;
+}
+function createBoard(){
+  const title = document.getElementById('newBoardTitle').value.trim();
+  if(!title) return;
+  state.boards.push({id:'b'+Date.now(),title,color:window._newBoardColor,desc:'',members:['JM'],
+    lists:[{id:'l'+Date.now()+'a',title:'To Do',cards:[]},{id:'l'+Date.now()+'b',title:'In Progress',cards:[]},{id:'l'+Date.now()+'c',title:'Done',cards:[]}]
+  });
+  save(); closeModal(); render();
+}
+
+// =================== RESET ===================
+function resetDemo(){
+  if(confirm('Reset all data to defaults?')){
+    state = defaultData();
+    save();
+    currentView='boards'; currentBoardId=null; currentCardModal=null;
+    render();
+  }
+}
+
+// =================== UTILS ===================
+function formatDate(d){
+  const dt = new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function bindEvents(){
+  document.addEventListener('keydown',e=>{if(e.key==='Escape') closeModal();});
+}
+
+// =================== INIT ===================
+render();
+</script>
+</body>
+</html>
