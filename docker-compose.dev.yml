@@ -1,0 +1,22 @@
+version: '3.8'
+
+# Development compose - runs just the database, app runs locally
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fhe_project_board
+      POSTGRES_USER: fhe_user
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fhe_user -d fhe_project_board"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata-dev:

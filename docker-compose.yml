@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fhe_project_board
+      POSTGRES_USER: fhe_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fhe_user -d fhe_project_board"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Application server
+  app:
+    build: .
+    ports:
+      - "${PORT:-3001}:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://fhe_user:${DB_PASSWORD:-changeme}@db:5432/fhe_project_board
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: 7d
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      EMAIL_POLL_INTERVAL_MS: ${EMAIL_POLL_INTERVAL_MS:-60000}
+      EMAIL_MONITORED_MAILBOX: ${EMAIL_MONITORED_MAILBOX:-}
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_MB: 25
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3001}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:
