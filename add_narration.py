@@ -3,7 +3,7 @@
 Add funny, engaging female voice narration to each slide of the FHE pitch deck.
 Generates TTS audio via espeak-ng + mbrola and embeds it into the PPTX.
 
-Uses python-pptx internal APIs for proper media embedding (no manual ZIP hacking).
+Uses python-pptx's proven add_movie() API for media embedding - ZERO hand-built XML.
 """
 
 import subprocess
@@ -14,9 +14,7 @@ import wave
 import audioop
 
 from pptx import Presentation
-from pptx.media import Video  # reuse for audio blob container
-from pptx.opc.constants import RELATIONSHIP_TYPE as RT
-from lxml import etree
+from pptx.util import Inches
 
 # ============ FULL NARRATION SCRIPTS ============
 NARRATIONS = {
@@ -198,12 +196,6 @@ NARRATIONS = {
     ),
 }
 
-# XML Namespaces
-P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
-A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-P14_NS = "http://schemas.microsoft.com/office/powerpoint/2010/main"
-
 
 def generate_audio(slide_num, text, output_dir):
     """Generate WAV audio using espeak-ng with mbrola female voice, at 44.1kHz."""
@@ -217,7 +209,7 @@ def generate_audio(slide_num, text, output_dir):
     ]
     subprocess.run(cmd, check=True, capture_output=True)
 
-    # Upsample 16kHz -> 44100Hz for PowerPoint compatibility
+    # Upsample to 44100Hz for PowerPoint compatibility
     with wave.open(raw_path, 'rb') as win:
         params = win.getparams()
         frames = win.readframes(params.nframes)
@@ -235,128 +227,6 @@ def generate_audio(slide_num, text, output_dir):
 
     os.remove(raw_path)
     return final_path
-
-
-def _find_max_shape_id(sp_tree):
-    """Find the highest shape id in the shape tree."""
-    max_id = 0
-    for elem in sp_tree.iter():
-        tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
-        if tag == 'cNvPr':
-            try:
-                sid = int(elem.get('id', '0'))
-                if sid > max_id:
-                    max_id = sid
-            except ValueError:
-                pass
-    return max_id
-
-
-def _add_audio_shape(sp_tree, shape_id, audio_rid, media_rid):
-    """Add an audio pic shape to the slide's shape tree."""
-    pic = etree.SubElement(sp_tree, f"{{{P_NS}}}pic")
-
-    # nvPicPr
-    nvPicPr = etree.SubElement(pic, f"{{{P_NS}}}nvPicPr")
-    cNvPr = etree.SubElement(nvPicPr, f"{{{P_NS}}}cNvPr")
-    cNvPr.set("id", str(shape_id))
-    cNvPr.set("name", f"Audio {shape_id}")
-    hlinkClick = etree.SubElement(cNvPr, f"{{{A_NS}}}hlinkClick")
-    hlinkClick.set(f"{{{R_NS}}}id", "")
-    hlinkClick.set("action", "ppaction://media")
-
-    cNvPicPr = etree.SubElement(nvPicPr, f"{{{P_NS}}}cNvPicPr")
-    etree.SubElement(cNvPicPr, f"{{{A_NS}}}picLocks").set("noChangeAspect", "1")
-
-    nvPr = etree.SubElement(nvPicPr, f"{{{P_NS}}}nvPr")
-    audioFile = etree.SubElement(nvPr, f"{{{A_NS}}}audioFile")
-    audioFile.set(f"{{{R_NS}}}link", audio_rid)
-
-    extLst = etree.SubElement(nvPr, f"{{{P_NS}}}extLst")
-    ext_el = etree.SubElement(extLst, f"{{{P_NS}}}ext")
-    ext_el.set("uri", "{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}")
-    p14media = etree.SubElement(ext_el, f"{{{P14_NS}}}media")
-    p14media.set(f"{{{R_NS}}}embed", media_rid)
-
-    # blipFill (required even for audio)
-    blipFill = etree.SubElement(pic, f"{{{P_NS}}}blipFill")
-    etree.SubElement(blipFill, f"{{{A_NS}}}blip")
-    stretch = etree.SubElement(blipFill, f"{{{A_NS}}}stretch")
-    etree.SubElement(stretch, f"{{{A_NS}}}fillRect")
-
-    # spPr - small speaker icon area (bottom-left corner)
-    spPr = etree.SubElement(pic, f"{{{P_NS}}}spPr")
-    xfrm = etree.SubElement(spPr, f"{{{A_NS}}}xfrm")
-    off = etree.SubElement(xfrm, f"{{{A_NS}}}off")
-    off.set("x", "457200")
-    off.set("y", "6400800")
-    ext_sz = etree.SubElement(xfrm, f"{{{A_NS}}}ext")
-    ext_sz.set("cx", "457200")
-    ext_sz.set("cy", "457200")
-    prstGeom = etree.SubElement(spPr, f"{{{A_NS}}}prstGeom")
-    prstGeom.set("prst", "rect")
-    etree.SubElement(prstGeom, f"{{{A_NS}}}avLst")
-
-    return shape_id
-
-
-def _add_audio_timing(slide_element, shape_id):
-    """Add timing XML to auto-play the audio when the slide appears."""
-    # Remove any existing timing
-    for old in slide_element.findall(f"{{{P_NS}}}timing"):
-        slide_element.remove(old)
-
-    timing = etree.SubElement(slide_element, f"{{{P_NS}}}timing")
-    tnLst = etree.SubElement(timing, f"{{{P_NS}}}tnLst")
-    par1 = etree.SubElement(tnLst, f"{{{P_NS}}}par")
-
-    cTn1 = etree.SubElement(par1, f"{{{P_NS}}}cTn")
-    cTn1.set("id", "1"); cTn1.set("dur", "indefinite")
-    cTn1.set("restart", "never"); cTn1.set("nodeType", "tmRoot")
-
-    childTnLst1 = etree.SubElement(cTn1, f"{{{P_NS}}}childTnLst")
-    seq = etree.SubElement(childTnLst1, f"{{{P_NS}}}seq")
-    seq.set("concurrent", "1"); seq.set("nextAc", "seek")
-
-    cTn2 = etree.SubElement(seq, f"{{{P_NS}}}cTn")
-    cTn2.set("id", "2"); cTn2.set("dur", "indefinite")
-    cTn2.set("nodeType", "mainSeq")
-
-    childTnLst2 = etree.SubElement(cTn2, f"{{{P_NS}}}childTnLst")
-    par2 = etree.SubElement(childTnLst2, f"{{{P_NS}}}par")
-    cTn3 = etree.SubElement(par2, f"{{{P_NS}}}cTn")
-    cTn3.set("id", "3"); cTn3.set("fill", "hold")
-    stCond3 = etree.SubElement(cTn3, f"{{{P_NS}}}stCondLst")
-    etree.SubElement(stCond3, f"{{{P_NS}}}cond").set("delay", "0")
-
-    childTnLst3 = etree.SubElement(cTn3, f"{{{P_NS}}}childTnLst")
-    par3 = etree.SubElement(childTnLst3, f"{{{P_NS}}}par")
-    cTn4 = etree.SubElement(par3, f"{{{P_NS}}}cTn")
-    cTn4.set("id", "4"); cTn4.set("fill", "hold")
-    stCond4 = etree.SubElement(cTn4, f"{{{P_NS}}}stCondLst")
-    etree.SubElement(stCond4, f"{{{P_NS}}}cond").set("delay", "0")
-
-    childTnLst4 = etree.SubElement(cTn4, f"{{{P_NS}}}childTnLst")
-
-    # The audio playback node
-    audio_el = etree.SubElement(childTnLst4, f"{{{P_NS}}}audio")
-    cMediaNode = etree.SubElement(audio_el, f"{{{P_NS}}}cMediaNode")
-    cMediaNode.set("vol", "80000")
-    cTn5 = etree.SubElement(cMediaNode, f"{{{P_NS}}}cTn")
-    cTn5.set("id", "5"); cTn5.set("fill", "hold"); cTn5.set("display", "0")
-    stCond5 = etree.SubElement(cTn5, f"{{{P_NS}}}stCondLst")
-    etree.SubElement(stCond5, f"{{{P_NS}}}cond").set("delay", "0")
-
-    tgtEl = etree.SubElement(cMediaNode, f"{{{P_NS}}}tgtEl")
-    etree.SubElement(tgtEl, f"{{{P_NS}}}spTgt").set("spid", str(shape_id))
-
-    # Navigation conditions
-    for lst_tag, evt in [("prevCondLst", "onPrev"), ("nextCondLst", "onNext")]:
-        condLst = etree.SubElement(seq, f"{{{P_NS}}}{lst_tag}")
-        cond = etree.SubElement(condLst, f"{{{P_NS}}}cond")
-        cond.set("evt", evt); cond.set("delay", "0")
-        tgt = etree.SubElement(cond, f"{{{P_NS}}}tgtEl")
-        etree.SubElement(tgt, f"{{{P_NS}}}sldTgt")
 
 
 def main():
@@ -384,56 +254,53 @@ def main():
 
     print()
     print("=" * 60)
-    print("EMBEDDING AUDIO VIA PYTHON-PPTX API")
+    print("EMBEDDING AUDIO USING add_movie() API (proven, tested)")
     print("=" * 60)
 
-    # Open presentation through python-pptx (proper OPC packaging)
+    # Open presentation through python-pptx
     prs = Presentation(pptx_input)
 
     for slide_num, wav_path in sorted(wav_files.items()):
         slide = prs.slides[slide_num - 1]
-        slide_part = slide.part
 
-        # Read WAV blob
-        with open(wav_path, 'rb') as f:
-            wav_blob = f.read()
+        # Use python-pptx's built-in add_movie() - this generates 100% correct
+        # XML with proper namespace declarations, poster frame image, relationships,
+        # and timing structure. Zero hand-built XML.
+        shape = slide.shapes.add_movie(
+            wav_path,
+            left=Inches(0.3),
+            top=Inches(6.8),
+            width=Inches(0.5),
+            height=Inches(0.5),
+            mime_type="audio/wav",
+        )
 
-        # Use Video class as a blob container (works for any media type)
-        media_obj = Video.from_blob(wav_blob, "audio/x-wav", f"narration{slide_num}.wav")
+        print(f"  Slide {slide_num}: shape_id={shape.shape_id} name='{shape.name}'")
 
-        # Add media part to the package (reuses python-pptx packaging)
-        media_part = prs.part.package.get_or_add_media_part(media_obj)
-
-        # Create TWO relationships (this is what PowerPoint requires):
-        # 1. RT.MEDIA - for p14:media r:embed
-        media_rid = slide_part.relate_to(media_part, RT.MEDIA)
-        # 2. RT.AUDIO - for a:audioFile r:link
-        audio_rid = slide_part.relate_to(media_part, RT.AUDIO)
-
-        # Access slide XML and add audio shape + timing
-        slide_elem = slide._element
-        sp_tree = slide_elem.find(f".//{{{P_NS}}}spTree")
-
-        shape_id = _find_max_shape_id(sp_tree) + 10
-        _add_audio_shape(sp_tree, shape_id, audio_rid, media_rid)
-        _add_audio_timing(slide_elem, shape_id)
-
-        print(f"  Slide {slide_num}: audio_rId={audio_rid} media_rId={media_rid} shape={shape_id}")
-
-    # Save through python-pptx (proper OPC packaging, Content_Types, etc.)
+    # Save through python-pptx (handles Content_Types, rels, ZIP structure)
     prs.save(pptx_output)
 
+    file_size = os.path.getsize(pptx_output) / (1024 * 1024)
     print(f"\n  Saved: {pptx_output}")
-    print(f"  Size: {os.path.getsize(pptx_output) / (1024*1024):.1f} MB")
+    print(f"  Size: {file_size:.1f} MB")
 
-    # Cleanup
+    # Verify the file can be re-opened cleanly
+    print("\n  Verifying file integrity...", end=" ")
+    prs2 = Presentation(pptx_output)
+    print(f"OK - {len(prs2.slides)} slides loaded")
+
+    # Cleanup temp audio files
     shutil.rmtree(audio_dir, ignore_errors=True)
 
     print()
     print("=" * 60)
     print("DONE!")
     print("=" * 60)
-    print(f"\nOpen in PowerPoint -> F5 for slideshow -> Audio auto-plays!")
+    print()
+    print("In PowerPoint:")
+    print("  - Each slide has a speaker icon (bottom-left)")
+    print("  - Click the icon to play narration")
+    print("  - Or start Slideshow (F5) and click the icon")
 
 
 if __name__ == "__main__":
