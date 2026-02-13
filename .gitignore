@@ -4,6 +4,7 @@ build/
 .env
 *.log
 uploads/
+backups/
 .DS_Store
 coverage/
 .nyc_output/

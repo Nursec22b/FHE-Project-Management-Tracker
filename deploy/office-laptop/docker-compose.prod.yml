@@ -1,0 +1,91 @@
+services:
+  # ── PostgreSQL database ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: fhe_project_board
+      POSTGRES_USER: fhe_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fhe_user -d fhe_project_board"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Only accessible from other containers, not the host network
+    expose:
+      - "5432"
+
+  # ── Application server ───────────────────────────────────────────────
+  app:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://fhe_user:${DB_PASSWORD}@db:5432/fhe_project_board
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      EMAIL_POLL_INTERVAL_MS: ${EMAIL_POLL_INTERVAL_MS:-60000}
+      EMAIL_MONITORED_MAILBOX: ${EMAIL_MONITORED_MAILBOX:-}
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_MB: 25
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8080}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Cloudflare Tunnel (free HTTPS, no port forwarding needed) ───────
+  # Remove this service if you only need local network access
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+    profiles:
+      - tunnel
+
+  # ── Automated daily database backups ─────────────────────────────────
+  db-backup:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        FILENAME="fhe_backup_$$(date +%Y%m%d_%H%M%S).sql.gz"
+        echo "Backing up database to $$FILENAME..."
+        pg_dump -h db -U fhe_user -d fhe_project_board | gzip > /backups/$$FILENAME
+        echo "Backup complete: $$FILENAME ($$(du -h /backups/$$FILENAME | cut -f1))"
+        # Keep only last 30 backups
+        ls -t /backups/fhe_backup_*.sql.gz 2>/dev/null | tail -n +31 | xargs rm -f 2>/dev/null || true
+        echo "Cleanup done. Backups on disk:"
+        ls -lh /backups/fhe_backup_*.sql.gz 2>/dev/null | wc -l
+    profiles:
+      - backup
+
+volumes:
+  pgdata:
+  uploads:
