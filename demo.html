@@ -17,7 +17,7 @@ a{color:inherit;text-decoration:none}
 /* HEADER */
 .header{background:var(--primary-dark);height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:fixed;top:0;left:0;right:0;z-index:100;box-shadow:0 2px 4px rgba(0,0,0,.15)}
 .header-logo{color:#fff;font-size:18px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
-.header-logo svg{width:24px;height:24px}
+.header-logo svg{width:36px;height:36px}
 .header-nav{display:flex;align-items:center;gap:12px}
 .header-nav button{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;transition:background .2s}
 .header-nav button:hover{background:rgba(255,255,255,.35)}
@@ -50,7 +50,8 @@ a{color:inherit;text-decoration:none}
 .list-header{padding:10px 12px 6px;display:flex;align-items:center;justify-content:space-between}
 .list-header h3{font-size:14px;font-weight:700;color:var(--text)}
 .list-header .card-count{font-size:11px;color:var(--text-sec);background:rgba(0,0,0,.08);padding:1px 7px;border-radius:10px}
-.list-cards{padding:4px 8px;overflow-y:auto;flex:1;min-height:20px}
+.list-cards{padding:4px 8px;overflow-y:auto;flex:1;min-height:40px;transition:background .2s}
+.list-cards.drag-over{background:rgba(0,121,191,.1);border-radius:4px}
 .list-footer{padding:8px}
 .add-card-btn{width:100%;background:none;border:none;color:var(--text-sec);text-align:left;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s,color .15s}
 .add-card-btn:hover{background:rgba(0,0,0,.06);color:var(--text)}
@@ -58,9 +59,10 @@ a{color:inherit;text-decoration:none}
 .add-list-btn:hover{background:rgba(255,255,255,.4)}
 
 /* CARDS */
-.card{background:var(--card);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s,box-shadow .15s;position:relative}
+.card{background:var(--card);border-radius:6px;padding:8px 10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s,box-shadow .15s;position:relative;-webkit-user-select:none;user-select:none}
 .card:hover{box-shadow:0 3px 8px rgba(0,0,0,.15);transform:translateY(-1px)}
-.card.dragging{opacity:.5;transform:rotate(3deg)}
+.card.dragging{opacity:.4;transform:rotate(3deg);box-shadow:0 8px 25px rgba(0,0,0,.25)}
+.card-ghost{position:fixed;pointer-events:none;z-index:1000;opacity:.9;transform:rotate(2deg);box-shadow:0 12px 30px rgba(0,0,0,.3);transition:none}
 .card-cover{height:6px;border-radius:6px 6px 0 0;margin:-8px -10px 8px}
 .card-labels{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
 .card-label{height:8px;width:42px;border-radius:4px;display:inline-block}
@@ -71,6 +73,9 @@ a{color:inherit;text-decoration:none}
 .card-meta-item svg{width:14px;height:14px}
 .card-assignees{display:flex;margin-left:auto}
 .card-assignee{width:26px;height:26px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;margin-left:-6px;border:2px solid #fff}
+
+/* DROP PLACEHOLDER */
+.drop-placeholder{border:2px dashed var(--primary);border-radius:6px;margin-bottom:8px;background:rgba(0,121,191,.06);min-height:40px;transition:all .2s}
 
 /* MODAL */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -162,6 +167,33 @@ const LABEL_COLORS = {
   'Backend':'#89609E','Frontend':'#00AECC','QA':'#61BD4F','DevOps':'#EB5A46'
 };
 
+// FHE Engineering Logo SVG
+const FHE_LOGO = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#E0E8F0;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer hexagonal shape -->
+  <polygon points="100,10 180,55 180,145 100,190 20,145 20,55" fill="url(#logoGrad)" stroke="#fff" stroke-width="4"/>
+  <!-- F -->
+  <rect x="42" y="60" width="8" height="80" fill="#026AA7"/>
+  <rect x="42" y="60" width="35" height="8" fill="#026AA7"/>
+  <rect x="42" y="90" width="28" height="8" fill="#026AA7"/>
+  <!-- H -->
+  <rect x="85" y="60" width="8" height="80" fill="#0079BF"/>
+  <rect x="115" y="60" width="8" height="80" fill="#0079BF"/>
+  <rect x="85" y="92" width="38" height="8" fill="#0079BF"/>
+  <!-- E -->
+  <rect x="132" y="60" width="8" height="80" fill="#026AA7"/>
+  <rect x="132" y="60" width="35" height="8" fill="#026AA7"/>
+  <rect x="132" y="92" width="28" height="8" fill="#026AA7"/>
+  <rect x="132" y="132" width="35" height="8" fill="#026AA7"/>
+  <!-- ENGINEERING text -->
+  <text x="100" y="170" text-anchor="middle" fill="#026AA7" font-family="Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="3">ENGINEERING</text>
+</svg>`;
+
 function defaultData() {
   return {
     boards: [
@@ -241,6 +273,8 @@ let currentView = 'boards'; // 'boards' or 'board'
 let currentBoardId = null;
 let currentCardModal = null;
 let dragData = null;
+let isDragging = false;
+let dragStartPos = null;
 
 function save(){ localStorage.setItem('fhe_board_data', JSON.stringify(state)); }
 function getBoard(id){ return state.boards.find(b=>b.id===id); }
@@ -251,13 +285,14 @@ function render(){
   if(currentView === 'boards') app.innerHTML = renderHeader('boards') + renderBoardList();
   else app.innerHTML = renderHeader('board') + renderBoardView();
   bindEvents();
+  initTouchDrag();
   if(currentCardModal) openCardModal(currentCardModal);
 }
 
 function renderHeader(view){
   return `<div class="header">
     <div class="header-logo">
-      <svg viewBox="0 0 24 24" fill="white"><rect x="2" y="2" width="9" height="13" rx="2"/><rect x="13" y="2" width="9" height="9" rx="2"/></svg>
+      ${FHE_LOGO}
       FHE Project Board
     </div>
     <div class="header-nav">
@@ -303,8 +338,7 @@ function renderBoardView(){
         <h3>${list.title}</h3>
         <span class="card-count">${list.cards.length}</span>
       </div>
-      <div class="list-cards" data-list="${list.id}"
-           ondragover="onDragOver(event)" ondrop="onDrop(event,'${list.id}')">`;
+      <div class="list-cards" data-list="${list.id}">`;
     list.cards.forEach((card,ci) => {
       html += renderCard(card, list.id, ci);
     });
@@ -353,10 +387,7 @@ function renderCard(card, listId, idx){
     metaHtml = `<div class="card-meta">${metaItems.join('')}${assigneesHtml}</div>`;
   }
 
-  return `<div class="card" draggable="true" data-card="${card.id}" data-list="${listId}"
-    ondragstart="onDragStart(event,'${card.id}','${listId}')"
-    ondragend="onDragEnd(event)"
-    onclick="openCardDetail('${card.id}')">
+  return `<div class="card" draggable="true" data-card="${card.id}" data-list="${listId}">
     ${coverHtml}${labelsHtml}
     <div class="card-title">${card.title}</div>
     ${metaHtml}
@@ -371,6 +402,7 @@ function renderModal(){
 
 // =================== CARD DETAIL MODAL ===================
 function openCardDetail(cardId){
+  if(isDragging) return;
   let card = null, listTitle = '';
   const board = getBoard(currentBoardId);
   if(!board) return;
@@ -465,28 +497,178 @@ function closeModalOverlay(e){
   if(e.target.id==='modalOverlay') closeModal();
 }
 
-// =================== DRAG & DROP ===================
-function onDragStart(e, cardId, listId){
-  dragData = {cardId, listId};
-  e.dataTransfer.effectAllowed = 'move';
-  setTimeout(()=>{ e.target.classList.add('dragging'); },0);
+// =================== DRAG & DROP (Desktop HTML5) ===================
+function setupDesktopDrag(){
+  document.addEventListener('dragstart', function(e){
+    const card = e.target.closest('.card');
+    if(!card) return;
+    const cardId = card.dataset.card;
+    const listId = card.dataset.list;
+    dragData = {cardId, listId};
+    isDragging = true;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', cardId);
+    setTimeout(()=>{ card.classList.add('dragging'); },0);
+  });
+
+  document.addEventListener('dragend', function(e){
+    const card = e.target.closest('.card');
+    if(card) card.classList.remove('dragging');
+    document.querySelectorAll('.list-cards').forEach(lc => lc.classList.remove('drag-over'));
+    document.querySelectorAll('.drop-placeholder').forEach(p => p.remove());
+    setTimeout(()=>{ isDragging = false; dragData = null; }, 50);
+  });
+
+  document.addEventListener('dragover', function(e){
+    const listCards = e.target.closest('.list-cards');
+    if(!listCards) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.list-cards').forEach(lc => lc.classList.remove('drag-over'));
+    listCards.classList.add('drag-over');
+  });
+
+  document.addEventListener('dragleave', function(e){
+    const listCards = e.target.closest('.list-cards');
+    if(listCards && !listCards.contains(e.relatedTarget)){
+      listCards.classList.remove('drag-over');
+    }
+  });
+
+  document.addEventListener('drop', function(e){
+    e.preventDefault();
+    const listCards = e.target.closest('.list-cards');
+    if(!listCards || !dragData) return;
+    const targetListId = listCards.dataset.list;
+    moveCard(dragData.cardId, dragData.listId, targetListId);
+    document.querySelectorAll('.list-cards').forEach(lc => lc.classList.remove('drag-over'));
+  });
+
+  // Card click - only if not dragging
+  document.addEventListener('click', function(e){
+    if(isDragging) return;
+    const card = e.target.closest('.card');
+    if(!card) return;
+    if(e.target.closest('.add-card-btn') || e.target.closest('.add-form')) return;
+    const cardId = card.dataset.card;
+    if(cardId) openCardDetail(cardId);
+  });
 }
-function onDragEnd(e){ e.target.classList.remove('dragging'); dragData=null; }
-function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
-function onDrop(e, targetListId){
-  e.preventDefault();
-  if(!dragData) return;
+
+function moveCard(cardId, srcListId, tgtListId){
   const board = getBoard(currentBoardId);
-  const srcList = board.lists.find(l=>l.id===dragData.listId);
-  const tgtList = board.lists.find(l=>l.id===targetListId);
+  if(!board) return;
+  const srcList = board.lists.find(l=>l.id===srcListId);
+  const tgtList = board.lists.find(l=>l.id===tgtListId);
   if(!srcList||!tgtList) return;
-  const cardIdx = srcList.cards.findIndex(c=>c.id===dragData.cardId);
+  const cardIdx = srcList.cards.findIndex(c=>c.id===cardId);
   if(cardIdx===-1) return;
   const [card] = srcList.cards.splice(cardIdx,1);
   tgtList.cards.push(card);
   save();
   dragData = null;
   render();
+}
+
+// =================== TOUCH DRAG & DROP (Mobile) ===================
+let touchDragEl = null;
+let touchGhost = null;
+let touchCardId = null;
+let touchSrcListId = null;
+let touchStartX = 0;
+let touchStartY = 0;
+let touchMoved = false;
+
+function initTouchDrag(){
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('touchstart', onTouchStart, {passive: false});
+  });
+}
+
+function onTouchStart(e){
+  const card = e.target.closest('.card');
+  if(!card) return;
+  touchDragEl = card;
+  touchCardId = card.dataset.card;
+  touchSrcListId = card.dataset.list;
+  touchMoved = false;
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+
+  document.addEventListener('touchmove', onTouchMove, {passive: false});
+  document.addEventListener('touchend', onTouchEnd, {passive: false});
+}
+
+function onTouchMove(e){
+  if(!touchDragEl) return;
+  const touch = e.touches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  // Require minimum movement to start drag
+  if(!touchMoved && Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+
+  e.preventDefault();
+  touchMoved = true;
+  isDragging = true;
+  touchDragEl.classList.add('dragging');
+
+  // Create ghost element
+  if(!touchGhost){
+    touchGhost = touchDragEl.cloneNode(true);
+    touchGhost.classList.add('card-ghost');
+    touchGhost.style.width = touchDragEl.offsetWidth + 'px';
+    document.body.appendChild(touchGhost);
+  }
+
+  touchGhost.style.left = (touch.clientX - touchDragEl.offsetWidth/2) + 'px';
+  touchGhost.style.top = (touch.clientY - 20) + 'px';
+
+  // Highlight drop target
+  document.querySelectorAll('.list-cards').forEach(lc => lc.classList.remove('drag-over'));
+  const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  if(elemBelow){
+    const listCards = elemBelow.closest('.list-cards');
+    if(listCards) listCards.classList.add('drag-over');
+  }
+}
+
+function onTouchEnd(e){
+  document.removeEventListener('touchmove', onTouchMove);
+  document.removeEventListener('touchend', onTouchEnd);
+
+  if(touchGhost){
+    touchGhost.remove();
+    touchGhost = null;
+  }
+
+  if(touchDragEl){
+    touchDragEl.classList.remove('dragging');
+  }
+
+  document.querySelectorAll('.list-cards').forEach(lc => lc.classList.remove('drag-over'));
+
+  if(touchMoved && touchCardId){
+    // Find which list we dropped on
+    const touch = e.changedTouches[0];
+    const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    if(elemBelow){
+      const listCards = elemBelow.closest('.list-cards');
+      if(listCards){
+        const tgtListId = listCards.dataset.list;
+        moveCard(touchCardId, touchSrcListId, tgtListId);
+      }
+    }
+  } else if(!touchMoved && touchCardId){
+    // It was a tap, not a drag - open card detail
+    openCardDetail(touchCardId);
+  }
+
+  touchDragEl = null;
+  touchCardId = null;
+  touchSrcListId = null;
+  setTimeout(()=>{ isDragging = false; }, 50);
 }
 
 // =================== NAVIGATION ===================
@@ -584,6 +766,7 @@ function bindEvents(){
 }
 
 // =================== INIT ===================
+setupDesktopDrag();
 render();
 </script>
 </body>
