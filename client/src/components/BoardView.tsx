@@ -250,6 +250,7 @@ interface ListColumnProps {
   onClickCard: (card: Card) => void;
   onEditTitle: (listId: string, title: string) => void;
   onArchiveList: (listId: string) => void;
+  onArchiveAllCards?: (listId: string) => void;
 }
 
 function ListColumn({
@@ -258,16 +259,20 @@ function ListColumn({
   onClickCard,
   onEditTitle,
   onArchiveList,
+  onArchiveAllCards,
 }: ListColumnProps) {
   const [addingCard, setAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(list.title);
+  const [showMenu, setShowMenu] = useState(false);
 
   const cardIds = useMemo(
     () => list.cards.filter((c) => !c.isArchived).map((c) => c.id),
     [list.cards],
   );
+
+  const activeCards = list.cards.filter((c) => !c.isArchived);
 
   const handleAddCard = () => {
     if (!newCardTitle.trim()) return;
@@ -307,6 +312,7 @@ function ListColumn({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 4,
+          position: 'relative',
         }}
       >
         {editingTitle ? (
@@ -348,23 +354,138 @@ function ListColumn({
             onClick={() => setEditingTitle(true)}
           >
             {list.title}
+            {activeCards.length > 0 && (
+              <span style={{ fontWeight: 400, color: COLORS.textSecondary, marginLeft: 6, fontSize: 12 }}>
+                {activeCards.length}
+              </span>
+            )}
           </div>
         )}
+
+        {/* List menu button */}
         <button
-          onClick={() => onArchiveList(list.id)}
-          title="Archive list"
+          onClick={() => setShowMenu(!showMenu)}
+          title="List actions"
           style={{
             background: 'none',
             border: 'none',
             cursor: 'pointer',
             fontSize: 16,
             color: COLORS.textSecondary,
-            padding: '2px 4px',
+            padding: '2px 6px',
             lineHeight: 1,
+            borderRadius: 4,
           }}
         >
-          &times;
+          &#8230;
         </button>
+
+        {/* Dropdown menu */}
+        {showMenu && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 36,
+              right: 8,
+              background: COLORS.card,
+              border: '1px solid #DFE1E6',
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 20,
+              minWidth: 200,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '8px 12px',
+                borderBottom: '1px solid #DFE1E6',
+                fontSize: 12,
+                fontWeight: 700,
+                color: COLORS.text,
+                textAlign: 'center',
+              }}
+            >
+              List Actions
+            </div>
+
+            {/* Archive all cards option */}
+            {activeCards.length > 0 && onArchiveAllCards && (
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  onArchiveAllCards(list.id);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: COLORS.text,
+                  textAlign: 'left',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#F4F5F7';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span style={{ fontSize: 16 }}>&#128451;</span>
+                Archive all cards ({activeCards.length})
+              </button>
+            )}
+
+            {/* Archive list option */}
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                onArchiveList(list.id);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '10px 12px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: COLORS.danger,
+                textAlign: 'left',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#FFF0F0';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <span style={{ fontSize: 16 }}>&times;</span>
+              Archive this list
+            </button>
+          </div>
+        )}
+
+        {/* Close menu on outside click */}
+        {showMenu && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 19,
+            }}
+            onClick={() => setShowMenu(false)}
+          />
+        )}
       </div>
 
       {/* Cards area */}
@@ -377,15 +498,13 @@ function ListColumn({
         }}
       >
         <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-          {list.cards
-            .filter((c) => !c.isArchived)
-            .map((card) => (
-              <SortableCard
-                key={card.id}
-                card={card}
-                onClick={() => onClickCard(card)}
-              />
-            ))}
+          {activeCards.map((card) => (
+            <SortableCard
+              key={card.id}
+              card={card}
+              onClick={() => onClickCard(card)}
+            />
+          ))}
         </SortableContext>
       </div>
 
@@ -496,6 +615,9 @@ export default function BoardView() {
   const [addingList, setAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
 
+  // Archive feedback
+  const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
+
   // Active drag item
   const [activeCard, setActiveCard] = useState<Card | null>(null);
 
@@ -532,6 +654,14 @@ export default function BoardView() {
   useEffect(() => {
     fetchBoard();
   }, [fetchBoard]);
+
+  // Auto-dismiss archive message after 4 seconds
+  useEffect(() => {
+    if (archiveMessage) {
+      const timer = setTimeout(() => setArchiveMessage(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [archiveMessage]);
 
   // ---------------------------------------------------------------- //
   //  Helpers: find list that contains a given card/item ID             //
@@ -742,6 +872,44 @@ export default function BoardView() {
     }
   };
 
+  // ---------------------------------------------------------------- //
+  //  Archive all cards in a list                                       //
+  // ---------------------------------------------------------------- //
+
+  const handleArchiveAllCards = async (listId: string) => {
+    if (!board) return;
+
+    const list = board.lists.find((l) => l.id === listId);
+    if (!list) return;
+
+    const activeCards = list.cards.filter((c) => !c.isArchived);
+    if (activeCards.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Archive all ${activeCards.length} card(s) in "${list.title}"?\n\nThis will remove them from the board view.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const result = await listsApi.archiveAllCards(listId);
+
+      // Remove all cards from the list in local state
+      setBoard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          lists: prev.lists.map((l) =>
+            l.id === listId ? { ...l, cards: [] } : l,
+          ),
+        };
+      });
+
+      setArchiveMessage(result.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to archive cards');
+    }
+  };
+
   const handleClickCard = (card: Card) => {
     setSelectedCard(card);
   };
@@ -779,6 +947,22 @@ export default function BoardView() {
     },
     [],
   );
+
+  // ---------------------------------------------------------------- //
+  //  Find the "Completed Lots" list for the quick-archive button       //
+  // ---------------------------------------------------------------- //
+
+  const completedLotsList = useMemo(() => {
+    if (!board) return null;
+    return board.lists.find(
+      (l) => l.title.toLowerCase() === 'completed lots',
+    ) ?? null;
+  }, [board]);
+
+  const completedLotsCardCount = useMemo(() => {
+    if (!completedLotsList) return 0;
+    return completedLotsList.cards.filter((c) => !c.isArchived).length;
+  }, [completedLotsList]);
 
   // ---------------------------------------------------------------- //
   //  Styles                                                            //
@@ -868,6 +1052,52 @@ export default function BoardView() {
       margin: '0 16px 8px',
       fontSize: 13,
     },
+    archiveBtn: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 14px',
+      background: 'rgba(255,255,255,0.2)',
+      border: '1px solid rgba(255,255,255,0.3)',
+      borderRadius: 6,
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.15s',
+      whiteSpace: 'nowrap' as const,
+    },
+    archiveBtnDisabled: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 14px',
+      background: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      borderRadius: 6,
+      color: 'rgba(255,255,255,0.4)',
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: 'not-allowed',
+      whiteSpace: 'nowrap' as const,
+    },
+    successToast: {
+      position: 'fixed' as const,
+      top: 70,
+      right: 20,
+      background: '#61BD4F',
+      color: '#fff',
+      padding: '12px 20px',
+      borderRadius: 8,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+      fontSize: 14,
+      fontWeight: 600,
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      animation: 'slideIn 0.3s ease',
+    },
   };
 
   // ---------------------------------------------------------------- //
@@ -892,9 +1122,18 @@ export default function BoardView() {
 
   return (
     <div style={styles.page}>
+      {/* Toast for archive success */}
+      {archiveMessage && (
+        <div style={styles.successToast}>
+          <span>&#10003;</span>
+          {archiveMessage}
+        </div>
+      )}
+
       {/* Board header */}
       <div style={styles.boardHeader}>
         <div style={styles.boardTitle}>{board.title}</div>
+
         <div style={styles.boardMembers}>
           {board.members?.slice(0, 6).map((m) => {
             const name = m.displayName || m.user?.displayName || '?';
@@ -925,6 +1164,52 @@ export default function BoardView() {
             </div>
           )}
         </div>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Archive Completed Lots button */}
+        {completedLotsList && (
+          <button
+            style={completedLotsCardCount > 0 ? styles.archiveBtn : styles.archiveBtnDisabled}
+            disabled={completedLotsCardCount === 0}
+            onClick={() => {
+              if (completedLotsList && completedLotsCardCount > 0) {
+                handleArchiveAllCards(completedLotsList.id);
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (completedLotsCardCount > 0) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.35)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (completedLotsCardCount > 0) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+              }
+            }}
+            title={
+              completedLotsCardCount > 0
+                ? `Archive ${completedLotsCardCount} card(s) from Completed Lots`
+                : 'No cards in Completed Lots'
+            }
+          >
+            <span style={{ fontSize: 16 }}>&#128451;</span>
+            Archive Completed Lots
+            {completedLotsCardCount > 0 && (
+              <span
+                style={{
+                  background: 'rgba(255,255,255,0.3)',
+                  padding: '1px 8px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                }}
+              >
+                {completedLotsCardCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {error && <div style={styles.errorMsg}>{error}</div>}
@@ -950,6 +1235,7 @@ export default function BoardView() {
                 onClickCard={handleClickCard}
                 onEditTitle={handleEditListTitle}
                 onArchiveList={handleArchiveList}
+                onArchiveAllCards={handleArchiveAllCards}
               />
             </SortableContext>
           ))}
