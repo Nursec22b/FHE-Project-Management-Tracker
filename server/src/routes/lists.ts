@@ -213,6 +213,54 @@ router.put(
 );
 
 // ------------------------------------------------------------------ //
+//  POST /:listId/archive-cards  -  archive ALL cards in a list        //
+// ------------------------------------------------------------------ //
+
+router.post(
+  '/:listId/archive-cards',
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { listId } = req.params;
+
+      // Verify the list exists and user has access
+      const list = await getListAndVerifyAccess(listId, req.user!.id);
+
+      // Count cards before archiving (for the response)
+      const countResult = await query(
+        'SELECT COUNT(*) AS count FROM cards WHERE list_id = $1 AND is_archived = false',
+        [listId],
+      );
+      const cardCount = parseInt(countResult.rows[0].count, 10);
+
+      if (cardCount === 0) {
+        res.json({
+          message: 'No cards to archive',
+          archivedCount: 0,
+          listId,
+          listTitle: list.title,
+        });
+        return;
+      }
+
+      // Archive all non-archived cards in this list
+      await query(
+        'UPDATE cards SET is_archived = true WHERE list_id = $1 AND is_archived = false',
+        [listId],
+      );
+
+      res.json({
+        message: `Successfully archived ${cardCount} card(s) from "${list.title}"`,
+        archivedCount: cardCount,
+        listId,
+        listTitle: list.title,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ------------------------------------------------------------------ //
 //  DELETE /:listId  -  archive list                                   //
 // ------------------------------------------------------------------ //
 
