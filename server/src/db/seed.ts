@@ -5,7 +5,10 @@ async function seed() {
   console.log('Seeding database...');
 
   try {
-    // Create default admin user
+    // ================================================================ //
+    //  1. Create default admin user                                     //
+    // ================================================================ //
+
     const passwordHash = await bcrypt.hash('admin123', 12);
     const userResult = await query(
       `INSERT INTO users (email, password_hash, display_name, role)
@@ -17,14 +20,18 @@ async function seed() {
     const adminId = userResult.rows[0].id;
     console.log('Created admin user:', adminId);
 
-    // Create a sample board
+    // ================================================================ //
+    //  2. Create MATTAMY board                                          //
+    // ================================================================ //
+
     const boardResult = await query(
       `INSERT INTO boards (title, description, background_color, created_by)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      ['General Engineering', 'Main project tracking board', '#0079BF', adminId]
+      ['MATTAMY', 'Mattamy Homes project tracking board', '#0079BF', adminId]
     );
     const boardId = boardResult.rows[0].id;
+    console.log('Created MATTAMY board:', boardId);
 
     // Add admin as board member
     await query(
@@ -32,8 +39,29 @@ async function seed() {
       [boardId, adminId, 'admin']
     );
 
-    // Create default lists
-    const listNames = ['To Do', 'In Progress', 'Review', 'Done'];
+    // ================================================================ //
+    //  3. Create all 16 lists (matching Trello board order)             //
+    // ================================================================ //
+
+    const listNames = [
+      'Work To Do',
+      "Cindy's To Do",
+      'ARCH QC',
+      'STRUCT QC',
+      'KENDRA TO-DO',
+      "Angela's To-Do",
+      'Ryan Final Review',
+      'FINAL REVIEW',
+      'At Truss Company',
+      'At Carlos/Will',
+      'KHOV WAITING ON ARCHS',
+      'Completed Lots',
+      'Sent to SS',
+      'PAUSED LOTS',
+      'Misc completed',
+      "Caroline To-Do",
+    ];
+
     const listIds: string[] = [];
     for (let i = 0; i < listNames.length; i++) {
       const listResult = await query(
@@ -41,47 +69,107 @@ async function seed() {
         [boardId, listNames[i], i]
       );
       listIds.push(listResult.rows[0].id);
+      console.log(`  Created list [${i}]: ${listNames[i]}`);
     }
 
-    // Create default labels
+    // ================================================================ //
+    //  4. Create all labels (matching Trello label colors & names)      //
+    // ================================================================ //
+
     const labelDefs = [
-      { name: 'Urgent', color: '#EB5A46' },
-      { name: 'Client Request', color: '#F2D600' },
-      { name: 'Internal', color: '#61BD4F' },
-      { name: 'Design', color: '#C377E0' },
-      { name: 'Engineering', color: '#0079BF' },
-      { name: 'Permits', color: '#FF9F1A' },
+      { name: 'WAITING ON ARCHS',        color: '#FF9F1A' },  // orange
+      { name: 'TRUSSES RECEIVED',        color: '#F2D600' },  // yellow
+      { name: 'CADENCE',                 color: '#51E898' },  // lime green
+      { name: 'Need Master Updated',     color: '#FFFD85' },  // light yellow
+      { name: 'At Truss Company',        color: '#61BD4F' },  // green
+      { name: 'REVISION',                color: '#C377E0' },  // lavender
+      { name: 'CORRECTION',              color: '#F5DD29' },  // gold
+      { name: 'ARCH START',              color: '#EB5A46' },  // red-orange
+      { name: 'TOWNHOME',                color: '#7B61FF' },  // purple
+      { name: 'BDCs',                    color: '#0079BF' },  // blue
+      { name: 'Solara ARCH set up only', color: '#00C2E0' },  // teal
+      { name: "ENG REDLINE'S RCVD",      color: '#0C3E8C' },  // dark navy
+      { name: 'Ryan Final Review',       color: '#CF513D' },  // red
+      { name: 'KHOV',                    color: '#B04632' },  // brown
+      { name: 'KOLTER',                  color: '#FF78CB' },  // pink
     ];
+
+    const labelIds: Record<string, string> = {};
     for (const label of labelDefs) {
-      await query(
-        'INSERT INTO labels (board_id, name, color) VALUES ($1, $2, $3)',
+      const result = await query(
+        'INSERT INTO labels (board_id, name, color) VALUES ($1, $2, $3) RETURNING id',
         [boardId, label.name, label.color]
       );
+      labelIds[label.name] = result.rows[0].id;
+      console.log(`  Created label: ${label.name} (${label.color})`);
     }
 
-    // Create a few sample cards
-    const sampleCards = [
-      { list: 0, title: 'Review structural plans for Building A', desc: 'Complete review of the structural engineering plans submitted by the contractor.' },
-      { list: 0, title: 'Submit permit application - Project Delta', desc: 'Prepare and submit building permit application to the county.' },
-      { list: 1, title: 'Site inspection - 123 Main St', desc: 'Conduct on-site inspection for foundation work.' },
-      { list: 2, title: 'Client proposal - Smith Residence', desc: 'Finalize and send engineering proposal to the Smith family.' },
-      { list: 3, title: 'Completed: Phase 1 drainage design', desc: 'Drainage system design approved by county.' },
+    // ================================================================ //
+    //  5. Create a sample card with the MATTAMY LOT CHECKLIST           //
+    // ================================================================ //
+
+    // Create a sample card in the "Work To Do" list
+    const sampleCardResult = await query(
+      `INSERT INTO cards (list_id, title, description, position, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        listIds[0], // Work To Do
+        'SAMPLE LOT - Delete After Review',
+        'This is a sample card showing the standard MATTAMY LOT CHECKLIST template. Delete this card once the team has reviewed the checklist format.',
+        0,
+        adminId,
+      ]
+    );
+    const sampleCardId = sampleCardResult.rows[0].id;
+    console.log('Created sample card:', sampleCardId);
+
+    // Create the MATTAMY LOT CHECKLIST on the sample card
+    const checklistResult = await query(
+      'INSERT INTO checklists (card_id, title, position) VALUES ($1, $2, $3) RETURNING id',
+      [sampleCardId, 'MATTAMY LOT CHECKLIST', 0]
+    );
+    const checklistId = checklistResult.rows[0].id;
+
+    const checklistItems = [
+      'ARCHS READY FOR QC',
+      'ARCH REDLINES SENT TO DRAFTER',
+      'ARCH REDLINES APPLIED',
+      'CAD FILES CREATED',
+      'FILES SENT TO MATTAMY/VENDORS',
+      'TRUSSES RCVD',
+      'STRUCTS SET AND TRUSS REVIEW COMPLETED',
+      'STRUCTS QC',
+      'STRUCTS REDLINES APPLIED',
+      'SENT FOR FINAL QC',
+      'FINAL QC REDLINES APPLIED',
+      'BACKCHECKED BY CINDY',
+      'SENT TO SS',
     ];
 
-    for (let i = 0; i < sampleCards.length; i++) {
-      const card = sampleCards[i];
+    for (let i = 0; i < checklistItems.length; i++) {
       await query(
-        `INSERT INTO cards (list_id, title, description, position, created_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [listIds[card.list], card.title, card.desc, i, adminId]
+        'INSERT INTO checklist_items (checklist_id, content, is_checked, position) VALUES ($1, $2, $3, $4)',
+        [checklistId, checklistItems[i], false, i]
       );
     }
+    console.log(`  Created MATTAMY LOT CHECKLIST with ${checklistItems.length} items`);
 
-    console.log('Seed completed successfully.');
+    // ================================================================ //
+    //  Done                                                             //
+    // ================================================================ //
+
+    console.log('\n========================================');
+    console.log('  Seed completed successfully!');
+    console.log('========================================');
     console.log('\nDefault admin credentials:');
     console.log('  Email: admin@floridahorizoneng.com');
     console.log('  Password: admin123');
-    console.log('\n  ⚠ Change this password immediately in production!');
+    console.log('\n  ⚠  CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!\n');
+    console.log('Board created: MATTAMY');
+    console.log(`  Lists: ${listNames.length}`);
+    console.log(`  Labels: ${labelDefs.length}`);
+    console.log(`  Sample card with MATTAMY LOT CHECKLIST (${checklistItems.length} items)`);
   } catch (error) {
     console.error('Seed failed:', error);
     process.exit(1);
