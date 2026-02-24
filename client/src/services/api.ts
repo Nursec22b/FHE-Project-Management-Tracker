@@ -223,6 +223,21 @@ export const lists = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Archive ALL cards in a given list.
+   * Used by the "Archive Completed Lots" button.
+   */
+  archiveAllCards(listId: string): Promise<{
+    message: string;
+    archivedCount: number;
+    listId: string;
+    listTitle: string;
+  }> {
+    return request(`/lists/${listId}/archive-cards`, {
+      method: 'POST',
+    });
+  },
 };
 
 // ------------------------------------------------------------------ //
