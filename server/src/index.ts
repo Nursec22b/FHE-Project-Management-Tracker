@@ -19,6 +19,9 @@ import userRoutes from './routes/users';
 
 const app = express();
 
+// Trust Railway's proxy so express-rate-limit can read X-Forwarded-For correctly
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: config.nodeEnv === 'production' ? undefined : false,
