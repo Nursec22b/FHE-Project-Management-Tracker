@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { boards } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import type { BoardSummary } from '../types';
+import ImportTrello from './ImportTrello';
 
 // ------------------------------------------------------------------ //
 //  Colour palette                                                      //
@@ -35,6 +37,8 @@ const BOARD_COLORS = [
 
 export default function BoardList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [boardList, setBoardList] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +46,8 @@ export default function BoardList() {
 
   // Create-board form state
   const [showCreate, setShowCreate] = useState(false);
+  // Trello import modal
+  const [showImport, setShowImport] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newColor, setNewColor] = useState(BOARD_COLORS[0]);
@@ -322,6 +328,26 @@ export default function BoardList() {
             >
               + Create new board
             </div>
+
+            {/* Import from Trello tile — admin only */}
+            {isAdmin && (
+              <div
+                style={{
+                  ...styles.createCard,
+                  borderColor: '#0079BF',
+                  color: '#0079BF',
+                }}
+                onClick={() => setShowImport(true)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(0,121,191,0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0,0,0,0.04)';
+                }}
+              >
+                Import from Trello
+              </div>
+            )}
           </div>
         )}
 
@@ -391,6 +417,14 @@ export default function BoardList() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Trello import modal */}
+        {showImport && (
+          <ImportTrello
+            onClose={() => setShowImport(false)}
+            onImported={fetchBoards}
+          />
         )}
       </div>
     </div>

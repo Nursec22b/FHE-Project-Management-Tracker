@@ -18,6 +18,7 @@ import labelRoutes from './routes/labels';
 import checklistRoutes from './routes/checklists';
 import emailRuleRoutes from './routes/emailRules';
 import userRoutes from './routes/users';
+import adminRoutes from './routes/admin';
 
 const app = express();
 
@@ -54,8 +55,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing — 50mb limit to handle large Trello JSON exports
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
@@ -70,6 +71,7 @@ app.use('/api/labels', labelRoutes);
 app.use('/api/checklists', checklistRoutes);
 app.use('/api/email-rules', emailRuleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

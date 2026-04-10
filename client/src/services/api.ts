@@ -489,3 +489,56 @@ export const users = {
     return request<User>(`/users/${userId}`);
   },
 };
+
+// ------------------------------------------------------------------ //
+//  Admin — Trello Import                                               //
+// ------------------------------------------------------------------ //
+
+export interface TrelloImportPreview {
+  boardName: string;
+  boardDesc: string;
+  lists: number;
+  archivedLists: number;
+  cards: number;
+  archivedCards: number;
+  labels: number;
+  checklists: number;
+  comments: number;
+  trelloMembers: Array<{ id: string; username: string; fullName: string }>;
+}
+
+export interface TrelloImportResult {
+  boardId: string;
+  boardName: string;
+  listsCreated: number;
+  listsSkipped: number;
+  labelsCreated: number;
+  cardsCreated: number;
+  cardsSkipped: number;
+  checklistsCreated: number;
+  checklistItemsCreated: number;
+  commentsCreated: number;
+  assignmentsLinked: number;
+  assignmentsSkipped: number;
+  errors: string[];
+}
+
+export const admin = {
+  previewTrelloImport(trelloJson: unknown): Promise<TrelloImportPreview> {
+    return request<TrelloImportPreview>('/admin/import/trello/preview', {
+      method: 'POST',
+      body: JSON.stringify(trelloJson),
+    });
+  },
+
+  executeTrelloImport(data: {
+    trello: unknown;
+    memberMap: Record<string, string>;
+    includeArchived?: boolean;
+  }): Promise<TrelloImportResult> {
+    return request<TrelloImportResult>('/admin/import/trello', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
