@@ -85,8 +85,7 @@ export default function CardDetail({
   // Fetch full card data (checklists, comments) on mount
   useEffect(() => {
     refreshCard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.id]);
+  }, [card.id]); // card.id is the stable key; refreshCard wraps it
 
   // ---------------------------------------------------------------- //
   //  Refresh the card data from the server                             //
