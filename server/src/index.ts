@@ -6,6 +6,8 @@ import path from 'path';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { startEmailPolling } from './services/emailAutomation';
+import { runMigrations } from './db/migrate';
+import { runSeed } from './db/seed';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -82,18 +84,32 @@ if (config.nodeEnv === 'production') {
 // Error handling (must be last)
 app.use(errorHandler);
 
-// Start server
-app.listen(config.port, () => {
-  console.log(`
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+async function start() {
+  // Run migrations + seed on every startup (both are idempotent / no-op if
+  // the schema / data already exist, so this is safe in production).
+  console.log('Running database migrations...');
+  await runMigrations();
+
+  console.log('Checking database seed...');
+  await runSeed();
+
+  app.listen(config.port, () => {
+    console.log(`
 ╔══════════════════════════════════════════════════╗
 ║   FHE Project Board Server                       ║
 ║   Running on port ${config.port}                          ║
 ║   Environment: ${config.nodeEnv}                    ║
 ╚══════════════════════════════════════════════════╝
-  `);
+    `);
 
-  // Start email automation polling
-  startEmailPolling();
+    startEmailPolling();
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 export default app;

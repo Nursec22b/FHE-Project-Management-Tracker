@@ -1,6 +1,21 @@
 import bcrypt from 'bcryptjs';
 import { pool, query } from './pool';
 
+/**
+ * Seed the database with default admin user and MATTAMY board.
+ * Safe to call on every startup — skips silently if already seeded.
+ */
+export async function runSeed(): Promise<void> {
+  // Skip if the admin user already exists
+  const existing = await query(
+    `SELECT id FROM users WHERE email = $1`,
+    ['admin@floridahorizoneng.com'],
+  );
+  if (existing.rows.length > 0) return;
+
+  await seed();
+}
+
 async function seed() {
   console.log('Seeding database...');
 
@@ -172,10 +187,20 @@ async function seed() {
     console.log(`  Sample card with MATTAMY LOT CHECKLIST (${checklistItems.length} items)`);
   } catch (error) {
     console.error('Seed failed:', error);
-    process.exit(1);
-  } finally {
-    await pool.end();
+    throw error;
   }
 }
 
-seed();
+// ── Standalone script entry point ───────────────────────────────────────────
+if (require.main === module) {
+  runSeed()
+    .then(() => {
+      console.log('Seed completed.');
+      pool.end();
+    })
+    .catch((error) => {
+      console.error('Seed failed:', error);
+      pool.end();
+      process.exit(1);
+    });
+}
