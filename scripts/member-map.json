@@ -1,0 +1,5 @@
+{
+  "_readme": "Map each Trello username to the corresponding FHE email address. Remove or ignore this _readme key — the import script skips keys that start with underscore.",
+  "trello_username_1": "firstname.lastname@floridahorizoneng.com",
+  "trello_username_2": "firstname2.lastname2@floridahorizoneng.com"
+}
