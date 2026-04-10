@@ -21,6 +21,10 @@ import userRoutes from './routes/users';
 
 const app = express();
 
+// Trust Railway/Azure/Cloudflare proxy so express-rate-limit can read the
+// real client IP from the X-Forwarded-For header instead of throwing an error.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: config.nodeEnv === 'production' ? undefined : false,
