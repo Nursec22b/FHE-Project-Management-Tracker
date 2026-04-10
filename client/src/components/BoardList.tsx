@@ -309,7 +309,34 @@ export default function BoardList() {
                   <div style={styles.boardTitle}>{b.title}</div>
                   {b.description && <div style={styles.boardDesc}>{b.description}</div>}
                 </div>
-                <div style={styles.boardMeta}>Role: {b.memberRole}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={styles.boardMeta}>Role: {b.memberRole}</div>
+                  {isAdmin && (
+                    <button
+                      style={{
+                        background: 'rgba(0,0,0,0.25)',
+                        border: 'none',
+                        borderRadius: 4,
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '2px 8px',
+                        opacity: 0.8,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!window.confirm(`Delete board "${b.title}"? This cannot be undone.`)) return;
+                        boards.archive(b.id)
+                          .then(() => setBoardList((prev) => prev.filter((x) => x.id !== b.id)))
+                          .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to delete board'));
+                      }}
+                      title="Delete board"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 
