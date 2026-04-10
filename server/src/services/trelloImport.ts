@@ -67,6 +67,20 @@ interface TrelloCommentAction {
   data: { card: { id: string }; text: string };
 }
 
+interface TrelloCheckItemAction {
+  id: string;
+  type: 'updateCheckItemStateOnCard';
+  date: string;
+  memberCreator: TrelloMember;
+  data: {
+    card: { id: string };
+    checklist: { name: string };
+    checkItem: { name: string; state: 'complete' | 'incomplete' };
+  };
+}
+
+type TrelloAction = TrelloCommentAction | TrelloCheckItemAction | { type: string; [key: string]: unknown };
+
 export interface TrelloBoard {
   id: string;
   name: string;
@@ -77,7 +91,7 @@ export interface TrelloBoard {
   cards: TrelloCard[];
   members: TrelloMember[];
   checklists: TrelloChecklist[];
-  actions: Array<TrelloCommentAction | { type: string; [key: string]: unknown }>;
+  actions: TrelloAction[];
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -306,14 +320,35 @@ export async function executeTrelloImport(
       checklistsByCard.get(cl.idCard)!.push(cl);
     }
 
-    const comments = trello.actions.filter(
-      (a): a is TrelloCommentAction => a.type === 'commentCard',
-    );
-    const commentsByCard = new Map<string, TrelloCommentAction[]>();
-    for (const c of comments) {
-      const cid = c.data.card.id;
-      if (!commentsByCard.has(cid)) commentsByCard.set(cid, []);
-      commentsByCard.get(cid)!.push(c);
+    // Collect all importable activity per card: comments + checklist state changes
+    interface ActivityEntry { date: string; trelloMemberId: string; text: string }
+    const activityByCard = new Map<string, ActivityEntry[]>();
+
+    for (const action of trello.actions) {
+      let cardId: string | undefined;
+      let entry: ActivityEntry | undefined;
+
+      if (action.type === 'commentCard') {
+        const a = action as TrelloCommentAction;
+        cardId = a.data.card.id;
+        const author = a.memberCreator.fullName || `@${a.memberCreator.username}`;
+        entry = { date: a.date, trelloMemberId: a.memberCreator.id, text: `[Trello — ${author}]\n${a.data.text}` };
+      } else if (action.type === 'updateCheckItemStateOnCard') {
+        const a = action as TrelloCheckItemAction;
+        cardId = a.data.card.id;
+        const author = a.memberCreator.fullName || `@${a.memberCreator.username}`;
+        const verb = a.data.checkItem.state === 'complete' ? 'checked' : 'unchecked';
+        entry = {
+          date: a.date,
+          trelloMemberId: a.memberCreator.id,
+          text: `[Trello — ${author}] ${verb} "${a.data.checkItem.name}" in "${a.data.checklist.name}"`,
+        };
+      }
+
+      if (cardId && entry) {
+        if (!activityByCard.has(cardId)) activityByCard.set(cardId, []);
+        activityByCard.get(cardId)!.push(entry);
+      }
     }
 
     // ── Cards ──────────────────────────────────────────────────────────
@@ -388,18 +423,16 @@ export async function executeTrelloImport(
           }
         }
 
-        // Comments
-        const cardComments = [...(commentsByCard.get(card.id) ?? [])].sort(
+        // Activity (comments + checklist state changes)
+        const cardActivity = [...(activityByCard.get(card.id) ?? [])].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
-        for (const comment of cardComments) {
-          const author = comment.memberCreator.fullName || `@${comment.memberCreator.username}`;
-          const text = `[Trello — ${author}]\n${comment.data.text}`;
-          const uid = trelloMemberToFheId.get(comment.memberCreator.id) ?? adminUserId;
+        for (const activity of cardActivity) {
+          const uid = trelloMemberToFheId.get(activity.trelloMemberId) ?? adminUserId;
           await client.query(
             `INSERT INTO comments (card_id, user_id, content, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$4)`,
-            [fheCardId, uid, text, new Date(comment.date)],
+            [fheCardId, uid, activity.text, new Date(activity.date)],
           );
           stats.commentsCreated++;
         }

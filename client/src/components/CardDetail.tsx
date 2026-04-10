@@ -82,6 +82,12 @@ export default function CardDetail({
     setDueDateDraft(card.dueDate ? card.dueDate.slice(0, 10) : '');
   }, [card]);
 
+  // Fetch full card data (checklists, comments) on mount
+  useEffect(() => {
+    refreshCard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id]);
+
   // ---------------------------------------------------------------- //
   //  Refresh the card data from the server                             //
   // ---------------------------------------------------------------- //

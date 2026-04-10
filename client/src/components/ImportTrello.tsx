@@ -19,6 +19,7 @@ export default function ImportTrello({ onClose, onImported }: Props) {
   const [preview, setPreview] = useState<TrelloImportPreview | null>(null);
   const [fheUsers, setFheUsers] = useState<User[]>([]);
   const [memberMap, setMemberMap] = useState<Record<string, string>>({});
+  const [includeArchived, setIncludeArchived] = useState(true);
   const [result, setResult] = useState<TrelloImportResult | null>(null);
 
   // ── Step 1: upload file and get preview ──────────────────────────────
@@ -66,6 +67,7 @@ export default function ImportTrello({ onClose, onImported }: Props) {
       const res = await admin.executeTrelloImport({
         trello: trelloJson,
         memberMap,
+        includeArchived,
       });
       setResult(res);
       setStep('done');
@@ -211,6 +213,19 @@ export default function ImportTrello({ onClose, onImported }: Props) {
                 ))}
               </>
             )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 4 }}>
+              <input
+                id="includeArchived"
+                type="checkbox"
+                checked={includeArchived}
+                onChange={(e) => setIncludeArchived(e.target.checked)}
+                style={{ cursor: 'pointer', accentColor: '#0079BF', width: 16, height: 16 }}
+              />
+              <label htmlFor="includeArchived" style={{ fontSize: 13, color: '#172B4D', cursor: 'pointer' }}>
+                Include archived cards and lists ({preview.archivedCards} cards, {preview.archivedLists} lists)
+              </label>
+            </div>
 
             <div style={s.actions}>
               <button style={{ ...s.btn, ...s.btnSecondary }} onClick={onClose}>Cancel</button>
