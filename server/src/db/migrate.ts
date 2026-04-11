@@ -1,4 +1,4 @@
-import { pool } from './pool';
+import { pool, query } from './pool';
 
 const migration = `
 -- Enable UUID extension
@@ -217,17 +217,25 @@ END;
 $$;
 `;
 
-async function migrate() {
-  console.log('Running database migration...');
-  try {
-    await pool.query(migration);
-    console.log('Migration completed successfully.');
-  } catch (error) {
-    console.error('Migration failed:', error);
-    process.exit(1);
-  } finally {
-    await pool.end();
-  }
+/**
+ * Run all migrations against the shared connection pool.
+ * Safe to call on every startup — all statements use IF NOT EXISTS / OR REPLACE.
+ */
+export async function runMigrations(): Promise<void> {
+  await query(migration, []);
 }
 
-migrate();
+// ── Standalone script entry point ───────────────────────────────────────────
+if (require.main === module) {
+  console.log('Running database migration...');
+  runMigrations()
+    .then(() => {
+      console.log('Migration completed successfully.');
+      pool.end();
+    })
+    .catch((error) => {
+      console.error('Migration failed:', error);
+      pool.end();
+      process.exit(1);
+    });
+}

@@ -1,9 +1,33 @@
 #!/bin/bash
-# Azure deployment script for FHE Project Board
-# Prerequisites: Azure CLI installed and logged in (az login)
+# FHE Project Board — Azure Deployment Script
 #
-# Usage: ./deploy/azure-deploy.sh <resource-group> <location>
-# Example: ./deploy/azure-deploy.sh fhe-project-board eastus
+# ── How to run this (no local installs needed) ───────────────────────────────
+#  1. Go to https://portal.azure.com
+#  2. Click the Cloud Shell icon (>_) in the top toolbar
+#  3. Choose "Bash" if prompted
+#  4. Clone the repo and run this script:
+#
+#       git clone https://github.com/Nursec22b/FHE-Project-Management-Tracker.git
+#       cd FHE-Project-Management-Tracker
+#       bash deploy/azure-deploy.sh fhe-project-board eastus
+#
+# ── What it does ─────────────────────────────────────────────────────────────
+#  Creates everything in Azure automatically:
+#    • Resource group
+#    • Container Registry (builds the Docker image in Azure — no Docker needed)
+#    • PostgreSQL 16 Flexible Server
+#    • App Service Plan (B1 Linux, ~$13/mo)
+#    • Web App with HTTPS
+#
+#  The app auto-runs DB migrations and seeds default admin on first boot.
+#  No manual database setup needed after this script finishes.
+#
+# ── Estimated monthly cost ───────────────────────────────────────────────────
+#  App Service B1:        ~$13/mo
+#  PostgreSQL B1ms:       ~$25/mo
+#  Container Registry:    ~$5/mo
+#  Total:                 ~$43/mo
+# ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
@@ -114,18 +138,55 @@ az webapp update \
   --https-only true
 
 echo ""
-echo "=== Deployment Complete ==="
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║   Deployment Complete!                                       ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "App URL: https://${APP_NAME}.azurewebsites.net"
-echo "Database URL: $DATABASE_URL"
+echo "  App URL:  https://${APP_NAME}.azurewebsites.net"
 echo ""
-echo "IMPORTANT - Save these credentials securely:"
-echo "  DB Password: $DB_PASSWORD"
-echo "  JWT Secret: $JWT_SECRET"
+echo "  ┌─ Save these credentials somewhere secure ──────────────────┐"
+echo "  │  DB Password:  $DB_PASSWORD"
+echo "  │  JWT Secret:   $JWT_SECRET"
+echo "  │  Database URL: $DATABASE_URL"
+echo "  └────────────────────────────────────────────────────────────┘"
 echo ""
-echo "Next steps:"
-echo "  1. Run database migrations: Connect to the database and run the migration SQL"
-echo "  2. Configure Azure AD app registration for email automation (if needed)"
-echo "  3. Set AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET in app settings"
-echo "  4. Set EMAIL_MONITORED_MAILBOX to the shared mailbox for email automation"
+echo "  The app will be live in ~2 minutes while Azure pulls the"
+echo "  container image. Database migrations and the default admin"
+echo "  account are created automatically on first boot."
+echo ""
+echo "  ── Your next steps ──────────────────────────────────────────"
+echo ""
+echo "  1. OPEN the app:"
+echo "       https://${APP_NAME}.azurewebsites.net"
+echo ""
+echo "  2. LOG IN with the default admin account:"
+echo "       Email:    admin@floridahorizoneng.com"
+echo "       Password: admin123"
+echo "       ⚠  Change this password immediately!"
+echo ""
+echo "  3. CREATE user accounts for all FHE staff (Admin → Users)"
+echo ""
+echo "  4. FILL IN scripts/member-map.json with Trello username → FHE"
+echo "     email mappings, then run the Trello import:"
+echo "       cd server"
+echo "       DATABASE_URL='$DATABASE_URL' \\"
+echo "         npx ts-node ../scripts/import-trello.ts ../exports/mattamy.json"
+echo ""
+echo "  5. OPTIONAL — Email automation (Microsoft 365):"
+echo "       Register an Azure AD App with Mail.Read permission, then:"
+echo "       az webapp config appsettings set \\"
+echo "         --resource-group $RESOURCE_GROUP --name $APP_NAME \\"
+echo "         --settings \\"
+echo "           AZURE_TENANT_ID=<your-tenant-id> \\"
+echo "           AZURE_CLIENT_ID=<your-client-id> \\"
+echo "           AZURE_CLIENT_SECRET=<your-client-secret> \\"
+echo "           EMAIL_MONITORED_MAILBOX=tasks@floridahorizoneng.com"
+echo ""
+echo "  6. OPTIONAL — Custom domain via Cloudflare:"
+echo "       Add CNAME in Cloudflare: board → ${APP_NAME}.azurewebsites.net"
+echo "       (use DNS-only / grey cloud, not proxied)"
+echo "       Then: az webapp config hostname add \\"
+echo "         --resource-group $RESOURCE_GROUP \\"
+echo "         --webapp-name $APP_NAME \\"
+echo "         --hostname board.floridahorizoneng.com"
 echo ""

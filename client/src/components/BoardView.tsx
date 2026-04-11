@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   DndContext,
@@ -604,7 +604,7 @@ function ListColumn({
 // ------------------------------------------------------------------ //
 
 export default function BoardView() {
-  const { id: boardId } = useParams<{ id: string }>();
+  const { boardId } = useParams<{ boardId: string }>();
 
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
@@ -618,8 +618,21 @@ export default function BoardView() {
   // Archive feedback
   const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
 
+  // Search
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string; title: string; description: string | null;
+    isArchived: boolean; listId: string; listTitle: string;
+  }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
   // Active drag item
   const [activeCard, setActiveCard] = useState<Card | null>(null);
+
+  // Ref for the columns wrapper — used for click-and-drag horizontal scroll
+  const columnsRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -662,6 +675,40 @@ export default function BoardView() {
       return () => clearTimeout(timer);
     }
   }, [archiveMessage]);
+
+  // Search handler (debounced via useEffect)
+  useEffect(() => {
+    if (!showSearch || !searchQuery.trim() || !boardId) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const results = await boardsApi.search(boardId, searchQuery.trim());
+        setSearchResults(results);
+      } catch {
+        // ignore
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, showSearch, boardId]);
+
+  const handleRestoreCard = async (cardId: string, targetListId: string) => {
+    setRestoringId(cardId);
+    try {
+      await cardsApi.unarchive(cardId, targetListId);
+      await fetchBoard();
+      // Remove the restored card from search results
+      setSearchResults((prev) => prev.filter((r) => r.id !== cardId));
+    } catch {
+      // ignore
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   // ---------------------------------------------------------------- //
   //  Helpers: find list that contains a given card/item ID             //
@@ -973,6 +1020,7 @@ export default function BoardView() {
   const styles: Record<string, React.CSSProperties> = {
     page: {
       flex: 1,
+      minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
       background: bgColor,
@@ -1008,6 +1056,7 @@ export default function BoardView() {
     },
     columnsWrapper: {
       flex: 1,
+      minHeight: 0,
       display: 'flex',
       overflowX: 'auto',
       overflowY: 'hidden',
@@ -1168,6 +1217,26 @@ export default function BoardView() {
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
+        {/* Search button */}
+        <button
+          onClick={() => { setShowSearch(true); setSearchQuery(''); setSearchResults([]); }}
+          style={{
+            background: 'rgba(255,255,255,0.2)',
+            border: 'none',
+            borderRadius: 4,
+            color: '#fff',
+            padding: '6px 14px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginRight: 8,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.35)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+        >
+          &#128269; Search
+        </button>
+
         {/* Archive Completed Lots button */}
         {completedLotsList && (
           <button
@@ -1222,7 +1291,35 @@ export default function BoardView() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div style={styles.columnsWrapper}>
+        <div
+          ref={columnsRef}
+          style={{ ...styles.columnsWrapper, cursor: 'grab' }}
+          onMouseDown={(e) => {
+            // Don't hijack clicks on cards, buttons, inputs, or text
+            const tag = (e.target as HTMLElement).tagName;
+            if (['BUTTON', 'INPUT', 'TEXTAREA', 'A', 'SELECT'].includes(tag)) return;
+            if ((e.target as HTMLElement).closest('[data-nodrag]')) return;
+            // Only activate on left-click on the background / list background
+            if (e.button !== 0) return;
+            const el = columnsRef.current;
+            if (!el) return;
+            const startX = e.pageX;
+            const startScroll = el.scrollLeft;
+            el.style.cursor = 'grabbing';
+            el.style.userSelect = 'none';
+            const onMove = (me: MouseEvent) => {
+              el.scrollLeft = startScroll - (me.pageX - startX);
+            };
+            const onUp = () => {
+              el.style.cursor = 'grab';
+              el.style.userSelect = '';
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          }}
+        >
           {board.lists.map((list) => (
             <SortableContext
               key={list.id}
@@ -1325,6 +1422,139 @@ export default function BoardView() {
           onCardUpdated={handleCardUpdated}
           onCardArchived={handleCardArchived}
         />
+      )}
+
+      {/* Search modal */}
+      {showSearch && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            zIndex: 3000, padding: '60px 16px',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSearch(false); }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: 8, width: '100%', maxWidth: 560,
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          }}>
+            {/* Search input */}
+            <div style={{ padding: '16px 16px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search cards by title or description..."
+                  style={{
+                    flex: 1, padding: '10px 14px', fontSize: 15,
+                    border: '2px solid #0079BF', borderRadius: 6,
+                    outline: 'none', color: '#172B4D',
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setShowSearch(false); }}
+                />
+                <button
+                  onClick={() => setShowSearch(false)}
+                  style={{
+                    background: 'none', border: 'none', fontSize: 22,
+                    cursor: 'pointer', color: '#5E6C84', padding: '0 4px',
+                  }}
+                >&times;</button>
+              </div>
+              <div style={{ fontSize: 12, color: '#5E6C84', marginTop: 6, marginBottom: 12 }}>
+                Searches active and archived cards. Click a card to open it, or restore archived cards.
+              </div>
+            </div>
+
+            {/* Results */}
+            <div style={{ overflowY: 'auto', padding: '0 16px 16px' }}>
+              {searchLoading && (
+                <div style={{ textAlign: 'center', padding: 24, color: '#5E6C84', fontSize: 14 }}>
+                  Searching...
+                </div>
+              )}
+
+              {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 24, color: '#5E6C84', fontSize: 14 }}>
+                  No cards found.
+                </div>
+              )}
+
+              {!searchLoading && searchResults.map((result) => (
+                <div
+                  key={result.id}
+                  style={{
+                    border: '1px solid #DFE1E6', borderRadius: 6, padding: '10px 12px',
+                    marginBottom: 8, background: result.isArchived ? '#F8F9FA' : '#fff',
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      {result.isArchived && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, background: '#DFE1E6',
+                          color: '#5E6C84', padding: '1px 6px', borderRadius: 3,
+                        }}>
+                          ARCHIVED
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: 13, fontWeight: 600, color: '#172B4D',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {result.title}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#5E6C84' }}>
+                      List: {result.listTitle}
+                    </div>
+                    {result.description && (
+                      <div style={{
+                        fontSize: 12, color: '#5E6C84', marginTop: 2,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {result.description}
+                      </div>
+                    )}
+                  </div>
+
+                  {result.isArchived ? (
+                    <button
+                      disabled={restoringId === result.id}
+                      onClick={() => handleRestoreCard(result.id, result.listId)}
+                      style={{
+                        padding: '5px 12px', background: '#61BD4F', color: '#fff',
+                        border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                        cursor: restoringId === result.id ? 'wait' : 'pointer',
+                        opacity: restoringId === result.id ? 0.7 : 1, flexShrink: 0,
+                      }}
+                    >
+                      {restoringId === result.id ? 'Restoring...' : 'Restore'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Find the card in the board and open it
+                        const list = board.lists.find((l) => l.id === result.listId);
+                        const card = list?.cards.find((c) => c.id === result.id);
+                        if (card) { setSelectedCard(card); setShowSearch(false); }
+                      }}
+                      style={{
+                        padding: '5px 12px', background: '#0079BF', color: '#fff',
+                        border: 'none', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                    >
+                      Open
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,8 @@ import path from 'path';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { startEmailPolling } from './services/emailAutomation';
+import { runMigrations } from './db/migrate';
+import { runSeed } from './db/seed';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -16,10 +18,12 @@ import labelRoutes from './routes/labels';
 import checklistRoutes from './routes/checklists';
 import emailRuleRoutes from './routes/emailRules';
 import userRoutes from './routes/users';
+import adminRoutes from './routes/admin';
 
 const app = express();
 
-// Trust Railway's proxy so express-rate-limit can read X-Forwarded-For correctly
+// Trust Railway/Azure/Cloudflare proxy so express-rate-limit can read the
+// real client IP from the X-Forwarded-For header instead of throwing an error.
 app.set('trust proxy', 1);
 
 // Security middleware
@@ -51,8 +55,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing — 50mb limit to handle large Trello JSON exports
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
@@ -67,6 +71,7 @@ app.use('/api/labels', labelRoutes);
 app.use('/api/checklists', checklistRoutes);
 app.use('/api/email-rules', emailRuleRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -85,18 +90,32 @@ if (config.nodeEnv === 'production') {
 // Error handling (must be last)
 app.use(errorHandler);
 
-// Start server
-app.listen(config.port, () => {
-  console.log(`
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+async function start() {
+  // Run migrations + seed on every startup (both are idempotent / no-op if
+  // the schema / data already exist, so this is safe in production).
+  console.log('Running database migrations...');
+  await runMigrations();
+
+  console.log('Checking database seed...');
+  await runSeed();
+
+  app.listen(config.port, () => {
+    console.log(`
 ╔══════════════════════════════════════════════════╗
 ║   FHE Project Board Server                       ║
 ║   Running on port ${config.port}                          ║
 ║   Environment: ${config.nodeEnv}                    ║
 ╚══════════════════════════════════════════════════╝
-  `);
+    `);
 
-  // Start email automation polling
-  startEmailPolling();
+    startEmailPolling();
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 export default app;

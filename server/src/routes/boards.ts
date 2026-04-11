@@ -421,6 +421,49 @@ router.put(
 );
 
 // ------------------------------------------------------------------ //
+//  GET /:boardId/search  -  search cards on a board (incl. archived)  //
+// ------------------------------------------------------------------ //
+
+router.get(
+  '/:boardId/search',
+  requireBoardMembership,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { boardId } = req.params;
+      const q = ((req.query.q as string) || '').trim();
+      if (!q) {
+        res.json([]);
+        return;
+      }
+      const term = `%${q.toLowerCase()}%`;
+      const result = await query(
+        `SELECT c.id, c.title, c.description, c.is_archived, c.list_id,
+                l.title AS list_title
+         FROM cards c
+         JOIN lists l ON l.id = c.list_id
+         WHERE l.board_id = $1
+           AND (LOWER(c.title) LIKE $2 OR LOWER(COALESCE(c.description,'')) LIKE $2)
+         ORDER BY c.is_archived, l.position, c.position
+         LIMIT 60`,
+        [boardId, term],
+      );
+      res.json(
+        result.rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          isArchived: r.is_archived,
+          listId: r.list_id,
+          listTitle: r.list_title,
+        })),
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ------------------------------------------------------------------ //
 //  DELETE /:boardId  -  archive board (admin only)                    //
 // ------------------------------------------------------------------ //
 

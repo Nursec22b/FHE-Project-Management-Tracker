@@ -12,7 +12,8 @@
     "build:client": "cd client && npm run build",
     "start": "cd server && npm start",
     "db:migrate": "cd server && npm run db:migrate",
-    "db:seed": "cd server && npm run db:seed"
+    "db:seed": "cd server && npm run db:seed",
+    "import:trello": "cd server && npx ts-node ../scripts/import-trello.ts"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
