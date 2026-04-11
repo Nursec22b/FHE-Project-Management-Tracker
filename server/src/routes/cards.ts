@@ -490,6 +490,57 @@ router.delete(
 );
 
 // ------------------------------------------------------------------ //
+//  PUT /:cardId/unarchive  -  restore an archived card                //
+// ------------------------------------------------------------------ //
+
+router.put(
+  '/:cardId/unarchive',
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const { cardId } = req.params;
+      const { targetListId } = req.body as { targetListId?: string };
+
+      const { card, boardId } = await getCardAndVerifyAccess(cardId, req.user!.id);
+
+      if (targetListId) {
+        // Verify the target list belongs to the same board
+        const listCheck = await query(
+          'SELECT id FROM lists WHERE id = $1 AND board_id = $2 AND is_archived = false',
+          [targetListId, boardId],
+        );
+        if (listCheck.rows.length === 0) {
+          res.status(400).json({ error: 'Target list not found on this board' });
+          return;
+        }
+        const posResult = await query(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM cards WHERE list_id = $1 AND is_archived = false',
+          [targetListId],
+        );
+        const newPos = posResult.rows[0].next_pos;
+        await query(
+          'UPDATE cards SET is_archived = false, list_id = $1, position = $2 WHERE id = $3',
+          [targetListId, newPos, cardId],
+        );
+      } else {
+        // Restore in-place (original list)
+        const posResult = await query(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM cards WHERE list_id = $1 AND is_archived = false',
+          [card.list_id],
+        );
+        await query(
+          'UPDATE cards SET is_archived = false, position = $1 WHERE id = $2',
+          [posResult.rows[0].next_pos, cardId],
+        );
+      }
+
+      res.json({ message: 'Card restored successfully' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ------------------------------------------------------------------ //
 //  POST /:cardId/labels  -  add label to card                        //
 // ------------------------------------------------------------------ //
 

@@ -144,6 +144,13 @@ export const boards = {
     return request<BoardSummary[]>('/boards');
   },
 
+  search(boardId: string, q: string): Promise<Array<{
+    id: string; title: string; description: string | null;
+    isArchived: boolean; listId: string; listTitle: string;
+  }>> {
+    return request(`/boards/${boardId}/search?q=${encodeURIComponent(q)}`);
+  },
+
   create(data: {
     title: string;
     description?: string;
@@ -292,6 +299,13 @@ export const cards = {
   archive(cardId: string): Promise<{ message: string }> {
     return request<{ message: string }>(`/cards/${cardId}`, {
       method: 'DELETE',
+    });
+  },
+
+  unarchive(cardId: string, targetListId?: string): Promise<{ message: string }> {
+    return request<{ message: string }>(`/cards/${cardId}/unarchive`, {
+      method: 'PUT',
+      body: JSON.stringify({ targetListId }),
     });
   },
 
