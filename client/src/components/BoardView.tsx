@@ -977,6 +977,7 @@ export default function BoardView() {
       flexDirection: 'column',
       background: bgColor,
       overflow: 'hidden',
+      minWidth: 0,
     },
     boardHeader: {
       display: 'flex',
@@ -1008,6 +1009,7 @@ export default function BoardView() {
     },
     columnsWrapper: {
       flex: 1,
+      minWidth: 0,
       display: 'flex',
       overflowX: 'auto',
       overflowY: 'hidden',
