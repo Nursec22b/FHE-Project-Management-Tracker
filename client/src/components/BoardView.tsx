@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   DndContext,
@@ -630,6 +630,9 @@ export default function BoardView() {
 
   // Active drag item
   const [activeCard, setActiveCard] = useState<Card | null>(null);
+
+  // Ref for the columns wrapper — used for click-and-drag horizontal scroll
+  const columnsRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1288,7 +1291,35 @@ export default function BoardView() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div style={styles.columnsWrapper}>
+        <div
+          ref={columnsRef}
+          style={{ ...styles.columnsWrapper, cursor: 'grab' }}
+          onMouseDown={(e) => {
+            // Don't hijack clicks on cards, buttons, inputs, or text
+            const tag = (e.target as HTMLElement).tagName;
+            if (['BUTTON', 'INPUT', 'TEXTAREA', 'A', 'SELECT'].includes(tag)) return;
+            if ((e.target as HTMLElement).closest('[data-nodrag]')) return;
+            // Only activate on left-click on the background / list background
+            if (e.button !== 0) return;
+            const el = columnsRef.current;
+            if (!el) return;
+            const startX = e.pageX;
+            const startScroll = el.scrollLeft;
+            el.style.cursor = 'grabbing';
+            el.style.userSelect = 'none';
+            const onMove = (me: MouseEvent) => {
+              el.scrollLeft = startScroll - (me.pageX - startX);
+            };
+            const onUp = () => {
+              el.style.cursor = 'grab';
+              el.style.userSelect = '';
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          }}
+        >
           {board.lists.map((list) => (
             <SortableContext
               key={list.id}
