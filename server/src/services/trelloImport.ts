@@ -162,9 +162,21 @@ export interface ImportPreview {
   trelloMembers: Array<{ id: string; username: string; fullName: string }>;
 }
 
+const TRELLO_TEMPLATE_PATTERNS = [
+  /^trello tip:/i,
+  /^who'?s the best person to/i,
+  /^how can i get access to the super secret/i,
+  /^what needs to get done\??$/i,
+  /^it'?s time to get things done/i,
+];
+
+const isTemplateCard = (name: string) =>
+  TRELLO_TEMPLATE_PATTERNS.some(p => p.test(name.trim()));
+
 export function previewImport(trello: TrelloBoard): ImportPreview {
   const activeLists = trello.lists.filter(l => !l.closed);
-  const activeCards = trello.cards.filter(c => !c.closed);
+  const realCards = trello.cards.filter(c => !isTemplateCard(c.name));
+  const activeCards = realCards.filter(c => !c.closed);
   const comments = trello.actions.filter(a => a.type === 'commentCard');
 
   return {
@@ -173,7 +185,7 @@ export function previewImport(trello: TrelloBoard): ImportPreview {
     lists: activeLists.length,
     archivedLists: trello.lists.length - activeLists.length,
     cards: activeCards.length,
-    archivedCards: trello.cards.length - activeCards.length,
+    archivedCards: realCards.length - activeCards.length,
     labels: trello.labels.length,
     checklists: trello.checklists.length,
     comments: comments.length,
@@ -297,21 +309,24 @@ export async function executeTrelloImport(
     }
 
     // ── Lists ──────────────────────────────────────────────────────────
-    const activeLists = trello.lists
+    const listsToImport = trello.lists
       .filter(l => includeArchived || !l.closed)
       .sort((a, b) => a.pos - b.pos);
 
+    // Track which lists are archived so cards inside them stay archived too
+    const archivedListIds = new Set(trello.lists.filter(l => l.closed).map(l => l.id));
+
     const trelloListToFheId = new Map<string, string>();
-    for (let i = 0; i < activeLists.length; i++) {
-      const list = activeLists[i];
+    for (let i = 0; i < listsToImport.length; i++) {
+      const list = listsToImport[i];
       const r = await client.query(
-        'INSERT INTO lists (board_id, title, position) VALUES ($1, $2, $3) RETURNING id',
-        [fheBoardId, list.name, i],
+        'INSERT INTO lists (board_id, title, position, is_archived) VALUES ($1, $2, $3, $4) RETURNING id',
+        [fheBoardId, list.name, i, list.closed],
       );
       trelloListToFheId.set(list.id, r.rows[0].id);
       stats.listsCreated++;
     }
-    stats.listsSkipped = trello.lists.length - activeLists.length;
+    stats.listsSkipped = trello.lists.length - listsToImport.length;
 
     // ── Index checklists + comments by card ────────────────────────────
     const checklistsByCard = new Map<string, TrelloChecklist[]>();
@@ -352,13 +367,13 @@ export async function executeTrelloImport(
     }
 
     // ── Cards ──────────────────────────────────────────────────────────
-    const activeCards = trello.cards
-      .filter(c => includeArchived || !c.closed)
+    const cardsToImport = trello.cards
+      .filter(c => (includeArchived || !c.closed) && !isTemplateCard(c.name))
       .sort((a, b) => a.pos - b.pos);
 
     const listPosCounter = new Map<string, number>();
 
-    for (const card of activeCards) {
+    for (const card of cardsToImport) {
       const fheListId = trelloListToFheId.get(card.idList);
       if (!fheListId) { stats.cardsSkipped++; continue; }
 
@@ -366,12 +381,15 @@ export async function executeTrelloImport(
         const pos = listPosCounter.get(fheListId) ?? 0;
         listPosCounter.set(fheListId, pos + 1);
 
+        // A card is archived if it was closed in Trello OR it belongs to an archived list
+        const isArchived = card.closed || archivedListIds.has(card.idList);
+
         const cr = await client.query(
           `INSERT INTO cards
              (list_id, title, description, position, due_date, is_archived, created_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
           [fheListId, card.name, card.desc || null, pos,
-           card.due ? new Date(card.due) : null, card.closed, adminUserId],
+           card.due ? new Date(card.due) : null, isArchived, adminUserId],
         );
         const fheCardId: string = cr.rows[0].id;
         stats.cardsCreated++;
