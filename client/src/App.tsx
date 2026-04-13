@@ -6,6 +6,7 @@ import Header from './components/Header';
 import BoardList from './components/BoardList';
 import BoardView from './components/BoardView';
 import EmailRulesPage from './components/EmailRulesPage';
+import BoardMembersPage from './components/BoardMembersPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -106,6 +107,16 @@ function App() {
               <AdminRoute>
                 <AppLayout>
                   <EmailRulesPage />
+                </AppLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/board-members"
+            element={
+              <AdminRoute>
+                <AppLayout>
+                  <BoardMembersPage />
                 </AppLayout>
               </AdminRoute>
             }

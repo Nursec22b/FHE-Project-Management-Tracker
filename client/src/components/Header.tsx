@@ -154,6 +154,21 @@ export default function Header() {
             Email Rules
           </Link>
         )}
+
+        {user?.role === 'admin' && (
+          <Link
+            to="/board-members"
+            style={styles.navLink}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Members
+          </Link>
+        )}
       </div>
 
       {/* Right: user info + logout */}

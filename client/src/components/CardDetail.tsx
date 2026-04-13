@@ -30,6 +30,33 @@ interface CardDetailProps {
   onClose: () => void;
   onCardUpdated: (card: Card) => void;
   onCardArchived: (cardId: string) => void;
+  onCardMoved?: (cardId: string, newListId: string) => void;
+}
+
+// ------------------------------------------------------------------ //
+//  List-usage helpers (localStorage)                                   //
+// ------------------------------------------------------------------ //
+
+function getListUsage(boardId: string): Record<string, { lastUsed: number; useCount: number }> {
+  try {
+    const stored = localStorage.getItem(`fhe_list_usage_${boardId}`);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function recordListUsage(boardId: string, listId: string): void {
+  try {
+    const usage = getListUsage(boardId);
+    usage[listId] = {
+      lastUsed: Date.now(),
+      useCount: (usage[listId]?.useCount ?? 0) + 1,
+    };
+    localStorage.setItem(`fhe_list_usage_${boardId}`, JSON.stringify(usage));
+  } catch {
+    // ignore
+  }
 }
 
 // ------------------------------------------------------------------ //
@@ -42,6 +69,7 @@ export default function CardDetail({
   onClose,
   onCardUpdated,
   onCardArchived,
+  onCardMoved,
 }: CardDetailProps) {
   const { user: currentUser } = useAuth();
 
@@ -74,6 +102,10 @@ export default function CardDetail({
   // Comments
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
+
+  // Move card
+  const [showMoveDropdown, setShowMoveDropdown] = useState(false);
+  const [movingCard, setMovingCard] = useState(false);
 
   // Sync state when card prop changes
   useEffect(() => {
@@ -297,6 +329,45 @@ export default function CardDetail({
       onCardArchived(card.id);
     } catch {
       // ignore
+    }
+  };
+
+  // ---------------------------------------------------------------- //
+  //  Move card                                                         //
+  // ---------------------------------------------------------------- //
+
+  // Active lists on this board, excluding the card's current list
+  const moveTargetLists = (() => {
+    const usage = getListUsage(board.id);
+    const available = (board.lists || []).filter(
+      (l) => !l.isArchived && l.id !== card.listId,
+    );
+    return available.sort((a, b) => {
+      const ua = usage[a.id];
+      const ub = usage[b.id];
+      if (!ua && !ub) return a.title.localeCompare(b.title);
+      if (!ua) return 1;
+      if (!ub) return -1;
+      // Sort by most recently used first
+      return ub.lastUsed - ua.lastUsed;
+    });
+  })();
+
+  const handleMoveCard = async (targetListId: string) => {
+    if (movingCard) return;
+    setMovingCard(true);
+    setShowMoveDropdown(false);
+    try {
+      await cardsApi.move(card.id, { targetListId, newPosition: 9999 });
+      recordListUsage(board.id, targetListId);
+      // Notify parent to update board state
+      onCardMoved?.(card.id, targetListId);
+      // Update card's listId locally
+      onCardUpdated({ ...card, listId: targetListId });
+    } catch {
+      // ignore
+    } finally {
+      setMovingCard(false);
     }
   };
 
@@ -1080,6 +1151,68 @@ export default function CardDetail({
             {(!card.comments || card.comments.length === 0) && (
               <div style={{ fontSize: 13, color: COLORS.textSecondary }}>No comments yet.</div>
             )}
+          </div>
+
+          {/* ---- Move card ---- */}
+          <div style={styles.section}>
+            <div style={styles.sectionTitle}>Move Card</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+              <div style={{ position: 'relative' }}>
+                <button
+                  style={{
+                    ...styles.btnSmall,
+                    background: movingCard ? '#DFE1E6' : '#EBECF0',
+                    cursor: movingCard ? 'wait' : 'pointer',
+                  }}
+                  onClick={() => setShowMoveDropdown((v) => !v)}
+                  disabled={movingCard}
+                >
+                  {movingCard ? 'Moving...' : showMoveDropdown ? 'Close' : 'Select List'}
+                </button>
+                {showMoveDropdown && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+                      onClick={() => setShowMoveDropdown(false)}
+                    />
+                    <div style={{ ...styles.dropdownOverlay, top: 36, left: 0, zIndex: 10 }}>
+                      {moveTargetLists.length === 0 ? (
+                        <div style={{ padding: 8, fontSize: 13, color: COLORS.textSecondary }}>
+                          No other lists available
+                        </div>
+                      ) : (
+                        moveTargetLists.map((l) => {
+                          const usage = getListUsage(board.id)[l.id];
+                          return (
+                            <div
+                              key={l.id}
+                              style={styles.dropdownItem}
+                              onClick={() => handleMoveCard(l.id)}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#F4F5F7';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                              }}
+                            >
+                              <span style={{ flex: 1, color: COLORS.text }}>{l.title}</span>
+                              {usage && (
+                                <span style={{ fontSize: 11, color: COLORS.textSecondary, marginLeft: 6 }}>
+                                  {usage.useCount > 1 ? `×${usage.useCount}` : 'recent'}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              <span style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                Current list: <strong>{board.lists?.find((l) => l.id === card.listId)?.title ?? 'Unknown'}</strong>
+              </span>
+            </div>
           </div>
 
           {/* ---- Archive button ---- */}

@@ -783,47 +783,47 @@ export default function BoardView() {
       const { active, over } = event;
       if (!over || !board) return;
 
-      const activeList = findListContainingCard(active.id as string);
-      const overList = findListContainingCard(over.id as string);
+      // active.data.current.card was captured at drag-start and never mutated
+      // by handleDragOver, so it still has the ORIGINAL listId
+      const originalListId = (active.data.current?.card as Card | undefined)?.listId;
 
-      if (!activeList || !overList) return;
+      // After handleDragOver ran, the card is now in the target list in state
+      const currentList = findListContainingCard(active.id as string);
 
-      if (activeList.id === overList.id) {
-        // Reorder within the same list
-        const oldIndex = activeList.cards.findIndex((c) => c.id === active.id);
-        const newIndex = activeList.cards.findIndex((c) => c.id === over.id);
+      if (!currentList || !originalListId) { fetchBoard(); return; }
+
+      if (originalListId === currentList.id) {
+        // ── Same-list reorder ────────────────────────────────────────
+        const oldIndex = currentList.cards.findIndex((c) => c.id === active.id);
+        const newIndex = currentList.cards.findIndex((c) => c.id === over.id);
 
         if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
-          const reordered = arrayMove(activeList.cards, oldIndex, newIndex);
+          const reordered = arrayMove(currentList.cards, oldIndex, newIndex);
           setBoard((prev) => {
             if (!prev) return prev;
             return {
               ...prev,
               lists: prev.lists.map((l) =>
-                l.id === activeList.id ? { ...l, cards: reordered } : l,
+                l.id === currentList.id ? { ...l, cards: reordered } : l,
               ),
             };
           });
-
-          // Persist the move
           try {
             await cardsApi.move(active.id as string, {
-              targetListId: activeList.id,
+              targetListId: currentList.id,
               newPosition: newIndex,
             });
           } catch {
-            // Revert on error
             fetchBoard();
           }
         }
       } else {
-        // Moved to a different list -- find new position
-        const newIndex = overList.cards.findIndex((c) => c.id === active.id);
-        const position = newIndex >= 0 ? newIndex : overList.cards.length - 1;
-
+        // ── Cross-list move (card already moved optimistically by handleDragOver)
+        const newIndex = currentList.cards.findIndex((c) => c.id === active.id);
+        const position = newIndex >= 0 ? newIndex : currentList.cards.length - 1;
         try {
           await cardsApi.move(active.id as string, {
-            targetListId: overList.id,
+            targetListId: currentList.id,
             newPosition: position,
           });
         } catch {
@@ -989,6 +989,29 @@ export default function BoardView() {
             ...l,
             cards: l.cards.filter((c) => c.id !== cardId),
           })),
+        };
+      });
+    },
+    [],
+  );
+
+  const handleCardMoved = useCallback(
+    (cardId: string, newListId: string) => {
+      setBoard((prev) => {
+        if (!prev) return prev;
+        let movedCard: Card | undefined;
+        const listsWithoutCard = prev.lists.map((l) => {
+          const found = l.cards.find((c) => c.id === cardId);
+          if (found) movedCard = { ...found, listId: newListId };
+          return { ...l, cards: l.cards.filter((c) => c.id !== cardId) };
+        });
+        if (!movedCard) return prev;
+        const card = movedCard;
+        return {
+          ...prev,
+          lists: listsWithoutCard.map((l) =>
+            l.id === newListId ? { ...l, cards: [...l.cards, card] } : l,
+          ),
         };
       });
     },
@@ -1421,6 +1444,7 @@ export default function BoardView() {
           onClose={() => setSelectedCard(null)}
           onCardUpdated={handleCardUpdated}
           onCardArchived={handleCardArchived}
+          onCardMoved={handleCardMoved}
         />
       )}
 
